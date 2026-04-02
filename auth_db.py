@@ -6,6 +6,7 @@ import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "user.db")
 
+# sets up user + guardian tables, runs on every startup
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
@@ -26,6 +27,7 @@ def init_db():
         )
     """)
     conn.commit()
+    # migration: add display_name if it doesn't exist yet
     try:
         cur.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
     except sqlite3.OperationalError:
@@ -33,6 +35,7 @@ def init_db():
     conn.commit()
     conn.close()
 
+# sha256 is fine for a local demo app, don't use this in prod
 def _hash_password(password: str) -> str:
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 

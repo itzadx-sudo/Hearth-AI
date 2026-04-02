@@ -15,9 +15,11 @@ from tabnet_engine import get_engine, TabNetEngine
 WINDOW_DAYS    = 7
 LOOKAHEAD_DAYS = 2
 
+# below this we flag as low confidence, don't trust the prediction blindly
 RISK_CONFIDENCE_THRESHOLD = 0.55
 
 
+# linear trend over the window, positive = going up
 def _slope(values):
     clean = [v for v in values if v is not None and not np.isnan(float(v))]
     if len(clean) < 2:
@@ -26,6 +28,7 @@ def _slope(values):
     return float(np.polyfit(x, clean, 1)[0])
 
 
+# mean reading variability - how jumpy the values are
 def _compute_mrv(values):
     clean = [v for v in values if v is not None and not np.isnan(float(v))]
     if len(clean) < 2:
@@ -130,7 +133,7 @@ def engineer_features_from_window(window):
 
     mean_hr  = features.get("heart_rate_mean", 0.0)
     mean_sys = features.get("systolic_bp_mean", 1.0)
-    features["shock_index"] = mean_hr / max(mean_sys, 1.0)
+    features["shock_index"] = mean_hr / max(mean_sys, 1.0)  # >1.0 is bad
 
     act_col  = next((c for c in ["activity_ratio", "dominant_activity"] if c in df.columns), None)
     mean_act = float(pd.to_numeric(df[act_col], errors="coerce").mean()) if act_col else 0.0
@@ -176,7 +179,7 @@ class PredictionEngine:
         self._engine.train_from_db(**kwargs)
 
 
-PatientPredictor = PredictionEngine
+PatientPredictor = PredictionEngine  # legacy alias
 
 
 if __name__ == "__main__":

@@ -70,20 +70,23 @@ LABEL_TO_IDX: Dict[str, int] = {"Healthy": 0, "Unhealthy": 1, "Critical": 2}
 IDX_TO_LABEL: Dict[int, str] = {v: k for k, v in LABEL_TO_IDX.items()}
 NUM_CLASSES = 3
 
+# fallback values when we have no patient history to impute from
 CLINICAL_MEDIANS = {
     "heart_rate": 72.0, "systolic_bp": 120.0, "diastolic_bp": 80.0,
     "body_temp": 36.6, "spo2": 97.0, "activity": 1.5,
     "delta_hr": 0.0, "delta_spo2": 0.0,
 }
 
-RING_BUFFER_SIZE = 10
+RING_BUFFER_SIZE = 10  # rolling window for per-patient NaN imputation
 
 
+# focal loss puts more weight on hard-to-classify samples (critical/unhealthy)
 class FocalLoss(nn.Module):
     def __init__(self, alpha: Optional[torch.Tensor] = None, gamma: float = 2.0):
         super().__init__()
         self.gamma = gamma
         if alpha is None:
+            # heavily weight critical (0.6) over healthy (0.1)
             raw_alpha = torch.tensor([0.1, 0.3, 0.6], dtype=torch.float32)
             self.alpha = raw_alpha / raw_alpha.sum()
         else:
@@ -100,6 +103,7 @@ class FocalLoss(nn.Module):
         return (alpha_t * focal_weight * ce_loss).mean()
 
 
+# batchnorm on virtual mini-batches, helps with large batch sizes
 class GhostBatchNorm(nn.Module):
     def __init__(self, n_features: int, virtual_batch_size: int = 128, momentum: float = 0.01):
         super().__init__()
@@ -194,13 +198,14 @@ class TabNet(nn.Module):
         attention_agg = torch.zeros(batch_size, self.input_dim, device=x.device)
         current_input = x_normalized
 
+        # each step picks which features to focus on via attention mask
         for step in range(self.n_steps):
             h    = self.step_transformers[step](current_input)
             d, a = h[:, :self.n_d], h[:, self.n_d:]
             output_agg = output_agg + F.relu(d)
             if step < self.n_steps - 1:
                 mask          = self.attention_transformers[step](a, prior_scales)
-                prior_scales  = prior_scales * (self.gamma - mask)
+                prior_scales  = prior_scales * (self.gamma - mask)  # decay already-used features
                 current_input = mask * x_normalized
                 attention_agg = attention_agg + mask
 
@@ -248,17 +253,20 @@ class DeviceRingBuffer:
     def push_and_impute(self, patient_id: str, reading: torch.Tensor) -> torch.Tensor:
         with self._lock:
             buffer, pos = self._get_or_create_buffer(patient_id)
-            
+
+            # push new reading into circular buffer
             base_reading = reading[:self.N_BASE_FEATURES]
             buffer[pos] = base_reading
             self._buffers[patient_id] = (buffer, (pos + 1) % self.buffer_size)
 
+            # fill NaN gaps with rolling median from this patient's history
             medians = torch.nanmedian(buffer, dim=0).values
             medians = torch.where(torch.isnan(medians), self._fallback, medians)
-            
+
             nan_mask = torch.isnan(base_reading)
             imputed_base = torch.where(nan_mask, medians, base_reading)
-            
+
+            # delta features: how far this reading is from the patient's recent baseline
             delta_hr   = (imputed_base[self.IDX_HR]   - medians[self.IDX_HR]) * 4.0
             delta_spo2 = (imputed_base[self.IDX_SPO2] - medians[self.IDX_SPO2]) * 5.0
             
@@ -407,6 +415,7 @@ def derive_severity_vectorized(df) -> "pd.Series":
     return result
 
 
+# min-max scale to [0, 1] using clinical bounds
 def _normalize(value: float, vital: str) -> float:
     lo, hi = VITAL_BOUNDS[vital]
     return float(np.clip((value - lo) / (hi - lo + 1e-8), 0.0, 1.0))
@@ -461,14 +470,13 @@ class TabNetEngine:
             self.model.load_state_dict(checkpoint["model_state_dict"])
             self.model.eval()
             self.is_ready = True
-            print(f"[OK] TabNet model loaded from {self.checkpoint_path}")
 
             try:
                 with torch.no_grad():
                     _dummy = torch.zeros(1, N_FEATURES, device=DEVICE)
                     self.model(_dummy)
                 if DEVICE.type in ("mps", "cuda"):
-                    print(f"[OK] {DEVICE.type.upper()} kernels warmed up — Day 1 will run at full speed")
+                    pass
             except Exception:
                 pass
         except Exception as e:
@@ -645,10 +653,12 @@ class TabNetEngine:
 
         return imputed_all
 
+    # 7-day lookahead risk prediction
     def predict_risk(self, patient_id: str, window_rows: List[dict]) -> Optional[dict]:
         if len(window_rows) < 7 or not self.is_ready or self.model is None:
             return None
 
+        # daily summary rows use different column names than raw readings
         mapped_rows = []
         for r in window_rows:
             mapped = r.copy()
@@ -664,6 +674,7 @@ class TabNetEngine:
         normalized_rows = mapped_rows
         raw_tensors = torch.stack([reading_to_tensor(r) for r in normalized_rows])
         
+        # fresh buffer so prediction isn't contaminated by real-time imputation state
         temp_ring_buffer = DeviceRingBuffer()
         imputed = temp_ring_buffer.batch_impute(patient_id, raw_tensors)
 
