@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Hearth AI: Intelligent Patient Monitoring</title>
+<meta name="description" content="Hearth AI monitors patient vitals in real time, predicts 7-day health trajectories, and surfaces the patients who need attention before a crisis develops.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--cream:#FAF7F2;--cream-dark:#F2EDE3;--ink:#1A1611;--ink-soft:#3D3529;--ink-muted:#7A6F62;--teal:#2A7D6B;--teal-light:#3CA68C;--teal-pale:#E8F5F1;--amber:#C96A1E;--amber-pale:#FDF0E6;--rose:#B84A5A;--rose-pale:#FBF0F2;--gold:#C8A84B;--gold-pale:#FBF6E9;--border:rgba(26,22,17,0.10);}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--cream);color:var(--ink);font-family:'DM Sans',sans-serif;font-weight:400;overflow-x:hidden;position:relative;}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;opacity:.035;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");background-size:200px;}
+
+.landing-nav{display:flex;align-items:center;justify-content:space-between;padding:1.4rem 3rem;border-bottom:1px solid var(--border);background:rgba(250,247,242,0.92);backdrop-filter:blur(16px);position:sticky;top:0;z-index:100;}
+.nav-logo{font-family:'Playfair Display',serif;font-size:1.35rem;font-weight:700;color:var(--teal);letter-spacing:-0.01em;text-decoration:none;}
+.nav-links{display:flex;gap:2.2rem;list-style:none;}
+.nav-links a{text-decoration:none;color:var(--ink-muted);font-size:.88rem;font-weight:500;letter-spacing:.02em;transition:color .2s;}
+.nav-links a:hover{color:var(--ink);}
+.nav-cta{background:var(--teal);color:#fff !important;padding:.52rem 1.3rem;border-radius:100px;font-size:.875rem !important;font-weight:500 !important;transition:background .2s,transform .15s !important;}
+.nav-cta:hover{background:var(--teal-light) !important;transform:translateY(-1px);color:#fff !important;}
+
+.hero{min-height:90vh;display:grid;grid-template-columns:1fr 1fr;gap:0;position:relative;overflow:hidden;}
+.hero-left{display:flex;flex-direction:column;justify-content:center;padding:6rem 4rem 6rem 6rem;position:relative;z-index:2;}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:.5rem;font-size:.78rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);margin-bottom:1.6rem;opacity:0;animation:fadeUp .7s .1s forwards;}
+.hero-eyebrow::before{content:'';width:20px;height:1px;background:var(--teal);}
+.hero-title{font-family:'Playfair Display',serif;font-size:clamp(3rem,4.6vw,4.8rem);font-weight:900;line-height:1.06;letter-spacing:-.022em;color:var(--ink);margin-bottom:1.8rem;opacity:0;animation:fadeUp .7s .2s forwards;}
+.hero-title em{font-style:italic;color:var(--teal);}
+.hero-subtitle{font-family:'Lora',serif;font-size:1.1rem;line-height:1.78;color:var(--ink-soft);max-width:440px;margin-bottom:2.6rem;opacity:0;animation:fadeUp .7s .3s forwards;}
+.hero-actions{display:flex;gap:1rem;align-items:center;opacity:0;animation:fadeUp .7s .4s forwards;}
+.btn-primary{background:var(--teal);color:#fff;padding:.85rem 2rem;border-radius:100px;text-decoration:none;font-size:.95rem;font-weight:500;transition:all .2s;display:inline-flex;align-items:center;gap:.5rem;box-shadow:0 4px 20px rgba(42,125,107,.25);}
+.btn-primary:hover{background:var(--teal-light);transform:translateY(-2px);box-shadow:0 8px 28px rgba(42,125,107,.3);}
+.btn-secondary{color:var(--ink-soft);text-decoration:none;font-size:.95rem;font-weight:500;display:inline-flex;align-items:center;gap:.4rem;transition:gap .2s,color .2s;}
+.btn-secondary:hover{gap:.7rem;color:var(--ink);}
+
+.hero-right{position:relative;display:flex;align-items:center;justify-content:center;padding:4rem;overflow:hidden;}
+.hero-bg-circle{position:absolute;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle at 40% 40%,#D4EDE8,#E8F5F1,transparent 70%);top:50%;left:50%;transform:translate(-50%,-50%);opacity:0;animation:fadeIn 1s .5s forwards;}
+
+.dashboard-preview{background:white;border-radius:24px;padding:1.6rem;box-shadow:0 20px 60px rgba(26,22,17,.10),0 4px 16px rgba(26,22,17,.06);width:360px;position:relative;z-index:2;opacity:0;animation:slideUp .9s .5s cubic-bezier(.22,1,.36,1) forwards;}
+.dp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;}
+.dp-title{font-family:'Playfair Display',serif;font-size:.95rem;font-weight:700;color:var(--ink);}
+.dp-live{display:flex;align-items:center;gap:.35rem;font-size:.72rem;font-weight:600;color:var(--teal);}
+.dp-dot{width:7px;height:7px;background:var(--teal);border-radius:50%;animation:breathe 1.6s ease infinite;}
+/* pulse dot — opacity only, no scale to avoid repaints */
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:.3}}
+.dp-row{display:flex;align-items:center;padding:.6rem 0;border-bottom:1px solid rgba(26,22,17,.06);gap:.9rem;}
+.dp-row:last-of-type{border-bottom:none;}
+.dp-status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.dp-name{flex:1;font-size:.82rem;font-weight:600;color:var(--ink-soft);}
+.dp-bar-wrap{width:70px;height:4px;background:rgba(0,0,0,.07);border-radius:3px;overflow:hidden;}
+.dp-bar-fill{height:100%;border-radius:3px;}
+.dp-pct{font-size:.72rem;font-weight:700;min-width:28px;text-align:right;}
+.dp-chip{font-size:.65rem;font-weight:700;padding:.18rem .5rem;border-radius:100px;}
+.dp-insight{margin-top:1rem;padding:.85rem 1rem;background:linear-gradient(135deg,var(--teal-pale),#fff);border-radius:12px;border-left:3px solid var(--teal);}
+.dp-insight-label{font-size:.65rem;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.25rem;}
+.dp-insight-text{font-family:'Lora',serif;font-size:.8rem;color:var(--ink-soft);line-height:1.55;}
+
+.badge-float{position:absolute;background:white;border-radius:12px;padding:.65rem .95rem;box-shadow:0 8px 28px rgba(26,22,17,.12);display:flex;align-items:center;gap:.55rem;font-size:.8rem;font-weight:500;color:var(--ink-soft);z-index:3;opacity:0;}
+.badge-float-1{top:16%;right:5%;animation:floatIn .8s .9s forwards,float1 4s 1.7s ease-in-out infinite;}
+.badge-float-2{bottom:18%;left:4%;animation:floatIn .8s 1.1s forwards,float2 5s 1.9s ease-in-out infinite;}
+@keyframes floatIn{to{opacity:1;}}
+@keyframes float1{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-8px) rotate(.5deg)}}
+@keyframes float2{0%,100%{transform:translateY(0) rotate(1deg)}50%{transform:translateY(-6px) rotate(-.5deg)}}
+
+.trust-bar{border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:1.4rem 6rem;display:flex;align-items:center;justify-content:center;gap:4rem;background:white;}
+.trust-item{display:flex;align-items:center;gap:.6rem;font-size:.85rem;font-weight:500;color:var(--ink-muted);}
+.trust-dot{width:5px;height:5px;border-radius:50%;background:var(--teal);flex-shrink:0;}
+
+section{position:relative;}
+.section-intro{text-align:center;padding:6rem 6rem 3rem;}
+.section-tag{display:inline-block;font-size:.76rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);margin-bottom:1rem;}
+.section-title{font-family:'Playfair Display',serif;font-size:clamp(2rem,3.2vw,2.8rem);font-weight:800;line-height:1.16;letter-spacing:-.02em;color:var(--ink);max-width:620px;margin:0 auto 1.2rem;}
+.section-title em{font-style:italic;color:var(--teal);}
+.section-body{font-family:'Lora',serif;font-size:1rem;line-height:1.8;color:var(--ink-soft);max-width:540px;margin:0 auto;}
+
+.features{padding:2rem 5rem 7rem;display:grid;grid-template-columns:1fr 1fr;gap:1.4rem;}
+.feature-card{background:white;border-radius:24px;padding:2.4rem;border:1px solid var(--border);position:relative;overflow:hidden;opacity:0;transform:translateY(24px);transition:opacity .6s,transform .6s,box-shadow .3s;}
+.feature-card.visible{opacity:1;transform:translateY(0);}
+.feature-card:hover{box-shadow:0 20px 50px rgba(26,22,17,.10);transform:translateY(-4px) !important;}
+.feature-number{font-family:'Playfair Display',serif;font-size:4rem;font-weight:900;line-height:1;opacity:.06;position:absolute;top:1.2rem;right:1.8rem;color:var(--ink);}
+.feature-title{font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:700;color:var(--ink);margin-bottom:.85rem;line-height:1.25;}
+.teal .feature-title{color:var(--teal);}
+.amber .feature-title{color:var(--amber);}
+.rose .feature-title{color:var(--rose);}
+.gold .feature-title{color:var(--gold);}
+.feature-sub{font-size:.78rem;font-weight:600;letter-spacing:.04em;color:var(--ink-muted);font-style:italic;display:block;margin-bottom:.7rem;}
+.feature-text{font-family:'Lora',serif;font-size:.93rem;line-height:1.75;color:var(--ink-soft);}
+.feature-card.full-width{grid-column:1 / -1;display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:center;}
+.feature-card.full-width .feature-visual{background:linear-gradient(135deg,var(--teal-pale),var(--cream-dark));border-radius:16px;padding:2rem;min-height:200px;display:flex;align-items:center;justify-content:center;}
+
+.stats-section{background:var(--ink);padding:5rem 6rem;display:grid;grid-template-columns:repeat(4,1fr);gap:2rem;position:relative;overflow:hidden;}
+.stats-section::before{content:'';position:absolute;top:-80px;right:-80px;width:400px;height:400px;border-radius:50%;background:rgba(42,125,107,.1);pointer-events:none;}
+.stat-item{text-align:center;opacity:0;transform:translateY(16px);transition:opacity .6s,transform .6s;}
+.stat-item.visible{opacity:1;transform:none;}
+.stat-number{font-family:'Playfair Display',serif;font-size:3.2rem;font-weight:900;color:var(--teal-light);line-height:1;margin-bottom:.5rem;letter-spacing:-.02em;}
+.stat-label-text{font-size:.88rem;color:rgba(255,255,255,.55);font-weight:400;line-height:1.5;}
+
+.how-it-works{padding:7rem 6rem;}
+.steps-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3rem;margin-top:4rem;position:relative;}
+.steps-grid::before{content:'';position:absolute;top:32px;left:16%;right:16%;height:1px;background:linear-gradient(90deg,transparent,var(--teal-light),var(--teal-light),transparent);opacity:.3;}
+.step{text-align:center;padding:0 1rem;}
+.step-num{width:64px;height:64px;border-radius:50%;color:var(--teal);font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem;position:relative;z-index:1;background:white;border:2px solid rgba(42,125,107,.2);box-shadow:0 4px 16px rgba(42,125,107,.12);}
+.step-title{font-family:'Playfair Display',serif;font-size:1.12rem;font-weight:700;color:var(--ink);margin-bottom:.7rem;}
+.step-text{font-family:'Lora',serif;font-size:.88rem;line-height:1.7;color:var(--ink-muted);}
+
+.cta-section{padding:8rem 6rem;text-align:center;position:relative;overflow:hidden;}
+.cta-section::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 70% 60% at 50% 50%,var(--teal-pale),transparent);pointer-events:none;}
+.cta-tag{font-size:.78rem;text-transform:uppercase;letter-spacing:.1em;font-weight:600;color:var(--teal);margin-bottom:1.2rem;position:relative;}
+.cta-title{font-family:'Playfair Display',serif;font-size:clamp(2.4rem,3.8vw,3.8rem);font-weight:900;letter-spacing:-.025em;color:var(--ink);line-height:1.1;max-width:680px;margin:0 auto 1.4rem;position:relative;}
+.cta-title em{font-style:italic;color:var(--teal);}
+.cta-sub{font-family:'Lora',serif;font-size:1rem;color:var(--ink-soft);line-height:1.75;max-width:460px;margin:0 auto 2.5rem;position:relative;}
+.cta-buttons{display:flex;gap:1rem;justify-content:center;align-items:center;position:relative;}
+
+.landing-footer{border-top:1px solid var(--border);padding:2.6rem 6rem;display:flex;align-items:center;justify-content:space-between;background:white;}
+.footer-logo{font-family:'Playfair Display',serif;font-size:1.18rem;font-weight:700;color:var(--teal);}
+.footer-tagline{font-size:.78rem;color:var(--ink-muted);margin-top:.2rem;}
+.footer-links{display:flex;gap:2rem;list-style:none;}
+.footer-links a{text-decoration:none;color:var(--ink-muted);font-size:.83rem;transition:color .2s;}
+.footer-links a:hover{color:var(--ink);}
+.footer-copy{font-size:.78rem;color:var(--ink-muted);}
+
+.mini-chart{display:flex;align-items:flex-end;gap:3px;height:48px;margin-top:.5rem;}
+.mc-bar{flex:1;border-radius:3px 3px 0 0;background:linear-gradient(180deg,var(--teal),rgba(42,125,107,.3));animation:mc-pulse 2s ease-in-out infinite;}
+@keyframes mc-pulse{0%,100%{opacity:.6}50%{opacity:1}}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:translateY(0)}}
+.feature-card:nth-child(1){transition-delay:.05s}
+.feature-card:nth-child(2){transition-delay:.15s}
+.feature-card:nth-child(3){transition-delay:.25s}
+.feature-card:nth-child(4){transition-delay:.35s}
+.feature-card:nth-child(5){transition-delay:.1s}
+.stat-item:nth-child(1){transition-delay:.05s}
+.stat-item:nth-child(2){transition-delay:.12s}
+.stat-item:nth-child(3){transition-delay:.19s}
+.stat-item:nth-child(4){transition-delay:.26s}
+
+@media(max-width:900px){
+  .hero{grid-template-columns:1fr;min-height:auto;}
+  .hero-right{display:none;}
+  .hero-left{padding:4rem 2rem;}
+  .features{padding:2rem 2rem 5rem;grid-template-columns:1fr;}
+  .feature-card.full-width{grid-template-columns:1fr;}
+  .stats-section{grid-template-columns:1fr 1fr;padding:4rem 3rem;}
+  .steps-grid{grid-template-columns:1fr;}
+  .steps-grid::before{display:none;}
+  .landing-nav{padding:1rem 1.5rem;}
+  .nav-links{display:none;}
+  .trust-bar{padding:1.4rem 2rem;gap:1.5rem;flex-wrap:wrap;}
+  .how-it-works,.cta-section{padding:4rem 2rem;}
+  .landing-footer{flex-direction:column;gap:1.5rem;text-align:center;}
+  .section-intro{padding:4rem 2rem 2rem;}
+}
+body{transition:opacity .45s cubic-bezier(.22,1,.36,1),transform .45s cubic-bezier(.22,1,.36,1);}
+body.page-exit{opacity:0;transform:translateY(-18px);pointer-events:none;}
+</style>
+</head>
+<body>
+
+<nav class="landing-nav">
+  <a class="nav-logo" href="/landing">Hearth AI</a>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="/" class="nav-cta" onclick="return goToDashboard(event)">Open Dashboard →</a></li>
+  </ul>
+</nav>
+
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-eyebrow">Real-Time Patient Monitoring</div>
+    <h1 class="hero-title">
+      See who needs<br>
+      attention <em>before</em><br>
+      it's too late.
+    </h1>
+    <p class="hero-subtitle">
+      Hearth AI monitors every patient's vitals continuously, predicts 7-day health trajectories, and surfaces the right alerts, so care teams focus on the patients who matter most right now.
+    </p>
+    <div class="hero-actions">
+      <a href="/" class="btn-primary" onclick="return goToDashboard(event)">Open Dashboard &nbsp;→</a>
+      <a href="#features" class="btn-secondary">Learn more &nbsp;›</a>
+    </div>
+  </div>
+
+  <div class="hero-right">
+    <div class="hero-bg-circle"></div>
+
+    <div class="badge-float badge-float-1">
+      <span style="width:8px;height:8px;border-radius:50%;background:var(--rose);display:inline-block;flex-shrink:0"></span>
+      <span>Critical alert suppressed, low confidence</span>
+    </div>
+    <div class="badge-float badge-float-2">
+      <span style="width:8px;height:8px;border-radius:50%;background:var(--teal);display:inline-block;flex-shrink:0"></span>
+      <span>Day 7 prediction ready</span>
+    </div>
+
+    <div class="dashboard-preview">
+      <div class="dp-header">
+        <div class="dp-title">Patient Registry</div>
+        <div class="dp-live"><div class="dp-dot"></div> Live</div>
+      </div>
+
+      <div class="dp-row">
+        <div class="dp-status-dot" style="background:var(--rose)"></div>
+        <div class="dp-name">Patient #4</div>
+        <div class="dp-bar-wrap"><div class="dp-bar-fill" style="width:82%;background:linear-gradient(90deg,var(--rose),#D4607A)"></div></div>
+        <div class="dp-pct" style="color:var(--rose)">82%</div>
+        <div class="dp-chip" style="background:var(--rose-pale);color:var(--rose)">Critical</div>
+      </div>
+      <div class="dp-row">
+        <div class="dp-status-dot" style="background:var(--amber)"></div>
+        <div class="dp-name">Patient #11</div>
+        <div class="dp-bar-wrap"><div class="dp-bar-fill" style="width:54%;background:linear-gradient(90deg,var(--amber),#E8882A)"></div></div>
+        <div class="dp-pct" style="color:var(--amber)">54%</div>
+        <div class="dp-chip" style="background:var(--amber-pale);color:var(--amber)">Unhealthy</div>
+      </div>
+      <div class="dp-row">
+        <div class="dp-status-dot" style="background:var(--teal)"></div>
+        <div class="dp-name">Patient #7</div>
+        <div class="dp-bar-wrap"><div class="dp-bar-fill" style="width:18%;background:linear-gradient(90deg,var(--teal),var(--teal-light))"></div></div>
+        <div class="dp-pct" style="color:var(--teal)">18%</div>
+        <div class="dp-chip" style="background:var(--teal-pale);color:var(--teal)">Healthy</div>
+      </div>
+      <div class="dp-row">
+        <div class="dp-status-dot" style="background:var(--teal)"></div>
+        <div class="dp-name">Patient #2</div>
+        <div class="dp-bar-wrap"><div class="dp-bar-fill" style="width:9%;background:linear-gradient(90deg,var(--teal),var(--teal-light))"></div></div>
+        <div class="dp-pct" style="color:var(--teal)">9%</div>
+        <div class="dp-chip" style="background:var(--teal-pale);color:var(--teal)">Healthy</div>
+      </div>
+
+      <div class="dp-insight">
+        <div class="dp-insight-label">Hearth Insight</div>
+        <div class="dp-insight-text">Patient #4 shows elevated SpO₂ drop and resting HR over 3 consecutive days. Act before it's too late.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="trust-bar">
+  <div class="trust-item"><div class="trust-dot"></div> Multivariate Neural Network</div>
+  <div class="trust-item"><div class="trust-dot"></div> 7-Day Risk Predictions</div>
+  <div class="trust-item"><div class="trust-dot"></div> Low-Confidence Fallback</div>
+  <div class="trust-item"><div class="trust-dot"></div> Real-Time IoT Integration</div>
+  <div class="trust-item"><div class="trust-dot"></div> Live Alert Feed</div>
+</div>
+
+<div class="section-intro" id="features">
+  <div class="section-tag">What Hearth AI does</div>
+  <h2 class="section-title">A complete picture of every patient, <em>continuously</em></h2>
+  <p class="section-body">Every feature is built around a single goal: give care teams the right information at the right time, with the confidence to act on it.</p>
+</div>
+
+<div class="features">
+  <div class="feature-card teal">
+    <div class="feature-number">1</div>
+    <h3 class="feature-title">7-Day Risk Prediction<span class="feature-sub">Temporal trajectory forecasting</span></h3>
+    <p class="feature-text">Hearth AI doesn't just flag today's vitals. It predicts each patient's health trajectory seven days out, using historical patterns to identify who is trending toward decline before it's too late.</p>
+  </div>
+
+  <div class="feature-card amber">
+    <div class="feature-number">2</div>
+    <h3 class="feature-title">Multivariate Vital Analysis<span class="feature-sub">Six simultaneous signals</span></h3>
+    <p class="feature-text">Heart rate, SpO₂, systolic and diastolic BP, body temperature, and activity level are analysed together, not in isolation. The model learns the relationships between them, catching patterns that single-metric thresholds miss.</p>
+  </div>
+
+  <div class="feature-card rose">
+    <div class="feature-number">3</div>
+    <h3 class="feature-title">False Alarm Reduction<span class="feature-sub">Confidence-gated alerts</span></h3>
+    <p class="feature-text">Critical predictions are verified against model confidence before firing. Low-confidence Critical alerts are automatically downgraded to Unhealthy, dramatically reducing alarm fatigue without silencing genuinely urgent events.</p>
+  </div>
+
+  <div class="feature-card gold">
+    <div class="feature-number">4</div>
+    <h3 class="feature-title">Live Fleet Overview<span class="feature-sub">All patients. One screen.</span></h3>
+    <p class="feature-text">The overview dashboard shows every patient's current status, risk percentile, and recent alert in a single leaderboard view, automatically kept current. Filter by status to zero in on critical cases.</p>
+  </div>
+
+  <div class="feature-card teal full-width">
+    <div>
+      <h3 class="feature-title" style="font-size:1.55rem">IoT-Native, Sensor-Resilient</h3>
+      <p class="feature-text" style="max-width:440px">Hearth AI ingests real-time data from bedside sensors over a persistent socket connection. Missing or failed sensors are handled gracefully. Readings with incomplete vitals are flagged, not silently dropped, and the model adjusts predictions accordingly.</p>
+    </div>
+    <div class="feature-visual">
+      <div style="width:100%">
+        <div style="font-size:.76rem;font-weight:600;color:var(--teal);letter-spacing:.06em;text-transform:uppercase;margin-bottom:.8rem">Risk trajectory · 7 days</div>
+        <div class="mini-chart">
+          <div class="mc-bar" style="height:28%;animation-delay:0s"></div>
+          <div class="mc-bar" style="height:35%;animation-delay:.08s"></div>
+          <div class="mc-bar" style="height:42%;animation-delay:.16s"></div>
+          <div class="mc-bar" style="height:55%;animation-delay:.24s"></div>
+          <div class="mc-bar" style="height:50%;animation-delay:.32s"></div>
+          <div class="mc-bar" style="height:68%;animation-delay:.40s"></div>
+          <div class="mc-bar" style="height:80%;animation-delay:.48s"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:.55rem;font-size:.7rem;color:var(--ink-muted)">
+          <span>Day 1</span><span>Day 3</span><span>Day 5</span><span>Day 7</span>
+        </div>
+        <div style="margin-top:1.1rem;padding:.75rem 1rem;background:white;border-radius:10px;font-size:.8rem;font-family:'Lora',serif;color:var(--ink-soft);font-style:italic">
+          Trajectory rising. Critical threshold projected at Day 7.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="stats-section" style="grid-template-columns:repeat(3,1fr)">
+  <div class="stat-item">
+    <div class="stat-number">6</div>
+    <div class="stat-label-text">Vital signals<br>analysed together</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-number">7</div>
+    <div class="stat-label-text">Days predicted ahead<br>per patient</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-number">3</div>
+    <div class="stat-label-text">Risk categories:<br>Healthy, Unhealthy, Critical</div>
+  </div>
+</div>
+
+<div class="how-it-works" id="how-it-works">
+  <div class="section-intro" style="padding-top:0">
+    <div class="section-tag">From data to decision</div>
+    <h2 class="section-title">How Hearth AI <em>works</em></h2>
+    <p class="section-body">Three stages, running continuously, from raw sensor data to actionable risk assessment.</p>
+  </div>
+
+  <div class="steps-grid">
+    <div class="step">
+      <div class="step-num">1</div>
+      <h3 class="step-title">Ingest & Log</h3>
+      <p class="step-text">IoT sensors stream vitals over a persistent TCP socket. Each reading is timestamped and logged per patient into a local database, including SpO₂, heart rate, blood pressure, temperature, and activity.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <h3 class="step-title">Infer & Predict</h3>
+      <p class="step-text">A trained neural network runs inference on each patient's latest readings and 7-day history, producing a risk score and confidence value. Low-confidence critical results are downgraded automatically.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <h3 class="step-title">Surface & Alert</h3>
+      <p class="step-text">The dashboard updates continuously with the latest risk scores, status labels, and feature-importance breakdowns. Alerts are generated for status changes and streamed to the alert feed in real time.</p>
+    </div>
+  </div>
+</div>
+
+<div class="cta-section">
+  <div class="cta-tag">Ready when you are</div>
+  <h2 class="cta-title">Every patient, <em>visible</em>, every risk, scored.</h2>
+  <p class="cta-sub">Open the dashboard to see your full patient fleet in real time, with predictions always up to date.</p>
+  <div class="cta-buttons">
+    <a href="/" class="btn-primary" style="font-size:1rem;padding:1rem 2.2rem" onclick="return goToDashboard(event)">Open Dashboard &nbsp;→</a>
+    <a href="#features" class="btn-secondary" style="font-size:1rem">Learn more &nbsp;›</a>
+  </div>
+</div>
+
+<footer class="landing-footer">
+  <div>
+    <div class="footer-logo">Hearth AI</div>
+    <div class="footer-tagline">Intelligent Patient Monitoring</div>
+  </div>
+  <ul class="footer-links">
+    <li><a href="/">Dashboard</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+  </ul>
+  <div class="footer-copy">© 2026 Hearth AI</div>
+</footer>
+
+<!-- scroll observer + smooth nav -->
+<script>
+// fade in cards and stats as they scroll into view
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) entry.target.classList.add('visible');
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.feature-card, .stat-item').forEach(el => observer.observe(el));
+
+window.addEventListener('scroll', () => {
+  const circle = document.querySelector('.hero-bg-circle');
+  if (circle) circle.style.transform = `translate(-50%, calc(-50% + ${window.scrollY * 0.15}px))`;
+});
+
+// page-exit animation before redirect
+function goToDashboard(e) {
+  e.preventDefault();
+  document.body.classList.add('page-exit');
+  setTimeout(() => { window.location.href = '/'; }, 450);
+  return false;
+}
+</script>
+
+</body>
+</html>

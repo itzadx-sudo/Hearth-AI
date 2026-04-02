@@ -1,0 +1,183 @@
+import os
+import sys
+import time
+import json
+import socket
+import sqlite3
+import subprocess
+import threading
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+SYSTEM_NAME = "Hearth AI - Home Care Monitoring System"
+VERSION = "4.0.0"
+
+_SEV_TAGS = {'normal': '[OK]', 'warning': '[!]', 'danger': '[!!]'}
+
+
+def _path(filename):
+    return os.path.join(BASE_DIR, filename)
+
+
+def _banner(subtitle=None):
+
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print(f"   {SYSTEM_NAME}")
+    print(f"   {subtitle or f'Version: {VERSION}'}")
+
+
+def _drain_output(proc):
+    try:
+        for line in iter(proc.stdout.readline, b''):
+            sys.stdout.write(line.decode('utf-8', errors='replace'))
+            sys.stdout.flush()
+    except Exception:
+        pass
+
+
+def _launch(label, script, *, pipe=True, fatal=False, extra_env=None):
+
+    print(label)
+    try:
+        env = {**os.environ}
+        if pipe:
+            env['PYTHONUNBUFFERED'] = '1'
+        if extra_env:
+            env.update(extra_env)
+        final_env = env if (pipe or extra_env) else None
+        args = [sys.executable] + (['-u'] if pipe else []) + [_path(script)]
+        proc = subprocess.Popen(
+            args,
+            stdout=subprocess.PIPE if pipe else subprocess.DEVNULL,
+            stderr=subprocess.STDOUT if pipe else subprocess.DEVNULL,
+            env=final_env,
+        )
+        if pipe:
+            threading.Thread(
+                target=_drain_output, args=(proc,), daemon=True).start()
+        print(f"      [OK] PID {proc.pid}")
+        return proc
+    except Exception as e:
+        print(f"      [ERROR] {e}")
+        if fatal:
+            sys.exit(1)
+        return None
+
+
+def _free_port(port: int):
+    try:
+        result = subprocess.run(
+            ["lsof", "-ti", f":{port}"],
+            capture_output=True, text=True
+        )
+        pids = result.stdout.strip().split()
+        for pid in pids:
+            try:
+                subprocess.run(["kill", "-9", pid], check=False)
+            except Exception:
+                pass
+        if pids:
+            time.sleep(0.5)
+    except Exception:
+        pass
+
+
+def _wait_for_server(host, port, timeout=60):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                print(f"      [OK] Server accepting connections on {host}:{port}")
+                return True
+        except (ConnectionRefusedError, OSError):
+            time.sleep(0.5)
+    return False
+
+
+def main():
+    _banner(f"Version {VERSION}")
+    print("  Hearth AI — Web Dashboard Launcher")
+    print("  " + "=" * 44)
+    print()
+
+    try:
+        from hearth_gui import run_gui_in_thread
+    except ImportError as e:
+        print(f"[ERROR] Could not import hearth_gui: {e}")
+        print("       Ensure Flask is installed: pip install flask")
+        input("Press Enter to exit...")
+        sys.exit(1)
+
+    from tabnet_engine import CHECKPOINT_PATH as _CKPT_PATH
+
+    if not os.path.exists(_CKPT_PATH):
+        print("[INFO] Model not trained — live mode will use NEWS2 rule-based triage.")
+        try:
+            if input("Continue with rule-based fallback? (Y/n): ").strip().lower() == 'n':
+                return
+        except (EOFError, KeyboardInterrupt):
+            return
+
+    try:
+        n_raw = input("\nLive patients  [1-500]  (default 50): ").strip()
+        n_patients = int(n_raw) if n_raw else 50
+        n_patients = max(1, min(n_patients, 500))
+
+        t_raw = input("Tick rate (s)  [0.5-30] (default 2.0): ").strip()
+        tick  = float(t_raw) if t_raw else 2.0
+        tick  = max(0.5, min(tick, 30.0))
+
+        p_raw = input("Dashboard port          (default 8050): ").strip()
+        port  = int(p_raw) if p_raw else 8050
+    except (ValueError, EOFError, KeyboardInterrupt):
+        print("[ERROR] Invalid input.")
+        return
+
+    live_env = {
+        'LIVE_N_PATIENTS':   str(n_patients),
+        'LIVE_TICK_SECONDS': f"{tick:.1f}",
+        'HEARTH_LIVE_MODE':  '1',
+    }
+
+    server = _launch("[1/3] Launching AI Server...", "ai_server.py",
+                     fatal=True, extra_env=live_env)
+    if server is None or not _wait_for_server('127.0.0.1', 65432):
+        print("[ERROR] AI Server did not become ready within 60 s. Aborting.")
+        if server is not None:
+            server.terminate()
+        return
+
+    sim = _launch("[2/3] Starting Live Simulator...",
+                  "iot_simulator.py", extra_env=live_env)
+
+    print("[3/3] Starting Web Dashboard...")
+    _free_port(port)
+    run_gui_in_thread(port=port, open_browser=True)
+
+    print(f" HEARTH AI LIVE + DASHBOARD — {n_patients} patients @ {tick:.1f}s/tick")
+    print(f" Dashboard: http://localhost:{port}  |  Press Ctrl+C to stop.\n")
+
+    try:
+        while True:
+            time.sleep(1)
+            if server is not None and server.poll() is not None:
+                print("\n[ERROR] AI Server stopped unexpectedly.")
+                break
+            if sim is not None and sim.poll() is not None:
+                print("\n[ERROR] Live Simulator exited unexpectedly (code %d)." % sim.returncode)
+                break
+    except KeyboardInterrupt:
+        print("\n\nStopping Dashboard + Live Monitoring...")
+    finally:
+        for name, proc in [("Live Simulator", sim), ("AI Server", server)]:
+            if proc and proc.poll() is None:
+                proc.terminate()
+                print(f"[OK] {name} stopped.")
+        print("[INFO] Dashboard halted.")
+        time.sleep(1)
+
+
+if __name__ == "__main__":
+    main()

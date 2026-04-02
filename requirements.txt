@@ -1,0 +1,17 @@
+# Core data + ML  (pinned for reproducible builds — Assignment Feedback Item 1)
+numpy==2.4.4
+pandas==3.0.2
+scikit-learn==1.8.0
+imbalanced-learn>=0.12.0
+matplotlib==3.10.8
+seaborn==0.13.2
+
+# Install via: pip install torch torchvision torchaudio
+torch>=2.0.0
+
+
+# API layer
+pydantic>=2.0.0,<3.0.0
+flask>=3.0.0
+
+# Optional: asyncio already in stdlib (Python 3.7+)
