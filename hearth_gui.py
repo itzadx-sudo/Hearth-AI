@@ -6,6 +6,17 @@ import sys
 import threading
 import time as _time
 import webbrowser
+import sys
+import os
+
+if getattr(sys, 'frozen', False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def _path(filename):
+    return os.path.join(BASE_DIR, filename)
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
