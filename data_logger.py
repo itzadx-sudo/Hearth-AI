@@ -983,12 +983,15 @@ def get_session_summary(session_id: str) -> dict:
 
         high_risk = conn.execute(
             """
-            SELECT COUNT(DISTINCT patient_id)
-            FROM live_predictions
-            WHERE session_id=? AND risk_score >= 0.5
-              AND computed_at_tick = (
-                  SELECT MAX(computed_at_tick) FROM live_predictions WHERE session_id=?
-              )
+            SELECT COUNT(DISTINCT lp.patient_id)
+            FROM live_predictions lp
+            INNER JOIN (
+                SELECT patient_id, MAX(computed_at_tick) AS max_tick
+                FROM live_predictions WHERE session_id = ?
+                GROUP BY patient_id
+            ) m ON lp.patient_id       = m.patient_id
+               AND lp.computed_at_tick = m.max_tick
+            WHERE lp.session_id = ? AND lp.risk_score >= 0.5
             """,
             (session_id, session_id),
         ).fetchone()[0]
