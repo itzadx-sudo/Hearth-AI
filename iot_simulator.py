@@ -17,7 +17,7 @@ PORT         = 65432
 LIVE_MODE    = os.environ.get("HEARTH_LIVE_MODE", "0") == "1"
 N_PATIENTS   = int(os.environ.get("LIVE_N_PATIENTS", "50"))
 TICK_SECONDS = float(os.environ.get("LIVE_TICK_SECONDS", "2.0"))
-SECONDS_PER_DAY = 1.0
+SECONDS_PER_DAY = 1.0  # replay speed: 1 real second = 1 sim day
 
 
 
@@ -51,6 +51,7 @@ class AsyncTCPClient:
         return False
 
     async def send_framed(self, data: bytes) -> bool:
+        # 4-byte big-endian length prefix + payload
         if not self._connected or self.writer is None:
             return False
         try:
@@ -81,6 +82,7 @@ class AsyncTCPClient:
 
 
 
+# v != v is the classic NaN check
 def _nan_to_none(v):
     if isinstance(v, float) and v != v:
         return None
@@ -106,8 +108,8 @@ class Patient:
         self.patient_id = patient_id
         self.profile = random.choices(_PROFILES, weights=_WEIGHTS, k=1)[0]
         self.base = self._base_vitals(self.profile)
-        self.noise_rng = random.Random(patient_id * 31337)
-        self.crit_left = 0
+        self.noise_rng = random.Random(patient_id * 31337)  # deterministic per patient
+        self.crit_left = 0  # remaining ticks in a critical episode
 
     def next_reading(self) -> dict:
         v = self._VITALS[self.profile]

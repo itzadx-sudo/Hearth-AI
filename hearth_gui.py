@@ -6,6 +6,17 @@ import sys
 import threading
 import time as _time
 import webbrowser
+import sys
+import os
+
+if getattr(sys, 'frozen', False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def _path(filename):
+    return os.path.join(BASE_DIR, filename)
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
@@ -18,6 +29,7 @@ except ImportError:
     print("[ERROR] Flask not installed.  Run:  pip install flask")
     sys.exit(1)
 
+import alert_engine
 import api
 import data_logger as live_db
 from tabnet_engine import get_engine as _get_engine
@@ -30,6 +42,7 @@ app.json.sort_keys = False
 app.secret_key = os.environ.get('HEARTH_SESSION_KEY', secrets.token_hex(16))
 auth_db.init_db()
 
+# when training is running, all API endpoints return 503 except auth
 _training_in_progress = False
 _training_message = ""
 _training_lock = threading.Lock()
@@ -52,6 +65,7 @@ def _check_training_lockdown():
         "message": _training_message,
     }), 503
 
+# background thread refreshes predictions every 8s so the dashboard doesn't lag
 _pred_cache: dict = {}
 _pred_lock = threading.Lock()
 
@@ -123,6 +137,7 @@ def _get_guardian_patients():
         return auth_db.get_guardian_patients(session.get('username'))
     return None
 
+# None means admin (see all), list means guardian (restricted)
 def _filter_patients(patients_list, allowed_pids):
     if allowed_pids is None:
         return patients_list
@@ -227,6 +242,7 @@ def index():
 
 @app.route("/api/overview")
 def api_overview():
+    # two code paths: live mode (streaming from simulator) or batch mode (historical)
     sid, summary = _live_session()
     health = _safe(api.get_system_health_sync, default={})
     allowed_pids = _get_guardian_patients()
@@ -240,19 +256,54 @@ def api_overview():
         live_preds.sort(key=lambda x: x.get("risk_score", 0) or 0, reverse=True)
         leaderboard = live_preds[:8]
 
-        alerts = []
-        try:
-            LIVE_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'hearth_live.db')
-            with sqlite3.connect(LIVE_DB_PATH) as conn:
-                conn.row_factory = sqlite3.Row
-                recent = conn.execute(
-                    "SELECT * FROM live_tick_results WHERE session_id=? AND status='Critical' ORDER BY tick DESC LIMIT 100",
-                    (sid,)
-                ).fetchall()
-                alerts = [{"patient_id": r["patient_id"], "alert_type": "critical", "type": "critical", "sim_date": r["tick_time"], "confidence": r["confidence"]} for r in recent]
-                alerts = _filter_patients(alerts, allowed_pids)
-        except Exception:
-            pass
+        # live critical alerts
+        alerts = [
+            {"patient_id": p["patient_id"], "alert_type": "critical", "type": "critical",
+             "sim_date": p.get("tick_time", ""), "confidence": p.get("confidence")}
+            for p in patients if p.get("status") == "Critical"
+        ]
+        alerts = _filter_patients(alerts, allowed_pids)
+
+        # predictive alerts
+        pred_pids_added = set()
+        for p in live_preds:
+            if (p.get('risk_score') or 0) >= 0.5:
+                fac = p.get('top_factors', [])
+                if isinstance(fac, str):
+                    try: fac = json.loads(fac)
+                    except Exception: fac = []
+                alerts.append({
+                    'patient_id': p['patient_id'],
+                    'alert_type': 'predictive',
+                    'type':       'predictive',
+                    'sim_date':   p.get('computed_at_time', ''),
+                    'confidence': p.get('risk_score'),
+                    'risk_label': p.get('risk_label'),
+                    'top_factors': fac,
+                })
+                pred_pids_added.add(p['patient_id'])
+        # fall back to stored preds
+        if not pred_pids_added:
+            try:
+                stored_preds = live_db.get_all_latest_predictions()
+                session_pids = {p['patient_id'] for p in patients}
+                for p in stored_preds:
+                    if p.get('risk_label') == 'HIGH RISK' and p.get('patient_id') in session_pids:
+                        fac = p.get('top_factors', [])
+                        if isinstance(fac, str):
+                            try: fac = json.loads(fac)
+                            except Exception: fac = []
+                        alerts.append({
+                            'patient_id': p['patient_id'],
+                            'alert_type': 'predictive',
+                            'type':       'predictive',
+                            'sim_date':   p.get('sim_date', '') or p.get('timestamp', ''),
+                            'confidence': p.get('risk_score'),
+                            'risk_label': p.get('risk_label'),
+                            'top_factors': fac,
+                        })
+            except Exception:
+                pass
 
         return jsonify({
             "live_mode":   True,
@@ -268,8 +319,40 @@ def api_overview():
 
     data          = _safe(api.get_dashboard_data_sync, default={})
     patients_data = _filter_patients(data.get("patients", []), allowed_pids)
-    all_alerts    = (data.get("recent_alerts", []) + data.get("predictive_alerts", []))
-    all_alerts    = _filter_patients(all_alerts, allowed_pids)
+    all_alerts = []
+    try:
+        for p in live_db.get_all_patients_latest():
+            if p.get('worst_status') == 'Critical':
+                all_alerts.append({
+                    'patient_id': p['patient_id'],
+                    'alert_type': 'critical',
+                    'type':       'critical',
+                    'sim_date':   p.get('sim_date', ''),
+                    'confidence': p.get('avg_confidence') or p.get('confidence'),
+                    'risk_label': None,
+                    'top_factors': [],
+                })
+    except Exception:
+        pass
+    try:
+        for p in live_db.get_all_latest_predictions():
+            if p.get('risk_label') == 'HIGH RISK':
+                fac = p.get('top_factors', [])
+                if isinstance(fac, str):
+                    try: fac = json.loads(fac)
+                    except Exception: fac = []
+                all_alerts.append({
+                    'patient_id': p['patient_id'],
+                    'alert_type': 'predictive',
+                    'type':       'predictive',
+                    'sim_date':   p.get('sim_date', '') or p.get('timestamp', ''),
+                    'confidence': p.get('risk_score'),
+                    'risk_label': p.get('risk_label'),
+                    'top_factors': fac,
+                })
+    except Exception:
+        pass
+    all_alerts = _filter_patients(all_alerts, allowed_pids)
     with _pred_lock:
         cache_snap = dict(_pred_cache)
     for p in patients_data:
@@ -385,58 +468,113 @@ def api_patient_detail(pid):
 
 @app.route("/api/alerts")
 def api_alerts():
-    sid, summary = _live_session()
     allowed_pids = _get_guardian_patients()
-    if sid and summary.get("total_ticks", 0) > 0:
-        preds    = _safe(live_db.get_latest_predictions, sid, default=[])
-        preds    = _filter_patients(preds, allowed_pids)
-        patients = _safe(live_db.get_latest_patient_states, sid, default=[])
-        patients = _filter_patients(patients, allowed_pids)
-        crit     = [p for p in patients if p.get("status") == "Critical"]
-
-        crit_alerts = [
-            {"patient_id": p["patient_id"], "alert_type": "critical", "type": "critical",
-             "sim_date": p.get("tick_time",""), "confidence": p.get("confidence"),
-             "risk_label": None, "top_factors": []}
-            for p in sorted(crit, key=lambda x: x.get("confidence") or 0, reverse=True)
-        ]
-        
-        pred_alerts = []
-        for p in preds:
-            if (p.get("risk_score") or 0) >= 0.5:
-                fac = p.get("top_factors", [])
-                if isinstance(fac, str):
-                    import json as _j
-                    try: fac = _j.loads(fac)
-                    except Exception: fac = []
-                pred_alerts.append({
-                    "patient_id": p["patient_id"], "alert_type": "predictive", "type": "predictive",
-                    "sim_date": p.get("computed_at_time",""),
-                    "confidence": p.get("risk_score"), "risk_label": p.get("risk_label"),
-                    "top_factors": fac,
-                })
-                
-        combined = crit_alerts + pred_alerts
-        combined.sort(key=lambda x: x.get("sim_date", ""), reverse=True)
-        return jsonify(combined)
-
-    alerts = _safe(lambda: api._run_sync(api.get_alerts(limit=500)), default=[])
+    db_rows = _safe(lambda: live_db.get_alerts_from_db(limit=200), default=[])
+    alerts = []
+    for r in db_rows:
+        det = r.get('details') if isinstance(r.get('details'), dict) else {}
+        alerts.append({
+            'id':          r.get('id'),
+            'patient_id':  r['patient_id'],
+            'alert_type':  r['alert_type'],
+            'type':        r['alert_type'],
+            'timestamp':   r.get('timestamp', ''),
+            'sim_date':    r.get('timestamp', ''),
+            'confidence':  det.get('risk_score') if r['alert_type'] == 'predictive' else r.get('confidence'),
+            'risk_label':  r.get('severity'),
+            'top_factors': det.get('top_factors', []) if isinstance(det, dict) else [],
+        })
+    # try in-memory queues
     if not alerts:
-        db_rows = _safe(lambda: live_db.get_alerts_from_db(limit=200), default=[])
-        alerts = []
-        for r in db_rows:
-            det = r.get('details') if isinstance(r.get('details'), dict) else {}
+        for a in alert_engine.get_alerts_sync() + alert_engine.get_predictive_alerts_sync():
             alerts.append({
-                'patient_id': r['patient_id'],
-                'alert_type': r['alert_type'],
-                'type':       r['alert_type'],
-                'timestamp':  r.get('timestamp', ''),
-                'sim_date':   r.get('timestamp', ''),
-                'confidence': det.get('risk_score') if r['alert_type'] == 'predictive' else r.get('confidence'),
-                'risk_label': r.get('severity'),
-                'top_factors': det.get('top_factors', []) if isinstance(det, dict) else [],
+                'id':          None,
+                'patient_id':  a['patient_id'],
+                'alert_type':  'critical' if 'status' in a else 'predictive',
+                'type':        'critical' if 'status' in a else 'predictive',
+                'timestamp':   a.get('timestamp', ''),
+                'sim_date':    a.get('timestamp', ''),
+                'confidence':  a.get('confidence') or a.get('risk_score'),
+                'risk_label':  a.get('risk_label'),
+                'top_factors': a.get('top_factors', []) or [],
             })
-    alerts = _filter_patients(alerts, allowed_pids)[:60]
+        alerts.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+
+    # try results db
+    if not alerts:
+        try:
+            with sqlite3.connect(live_db.RESULTS_DB_PATH) as conn:
+                conn.row_factory = sqlite3.Row
+                for r in conn.execute(
+                    "SELECT patient_id, sim_date, avg_confidence FROM daily_summaries "
+                    "WHERE worst_status='Critical' ORDER BY sim_date DESC LIMIT 150"
+                ).fetchall():
+                    alerts.append({
+                        'id': None, 'patient_id': r['patient_id'],
+                        'alert_type': 'critical', 'type': 'critical',
+                        'timestamp': r['sim_date'], 'sim_date': r['sim_date'],
+                        'confidence': r['avg_confidence'], 'risk_label': None, 'top_factors': [],
+                    })
+                for r in conn.execute(
+                    "SELECT patient_id, timestamp, sim_date, risk_score, risk_label, top_factors "
+                    "FROM predictions WHERE risk_label='HIGH RISK' ORDER BY timestamp DESC LIMIT 150"
+                ).fetchall():
+                    fac = []
+                    try: fac = json.loads(r['top_factors']) if r['top_factors'] else []
+                    except Exception: pass
+                    alerts.append({
+                        'id': None, 'patient_id': r['patient_id'],
+                        'alert_type': 'predictive', 'type': 'predictive',
+                        'timestamp': r['timestamp'] or r['sim_date'],
+                        'sim_date':  r['timestamp'] or r['sim_date'],
+                        'confidence': r['risk_score'], 'risk_label': r['risk_label'],
+                        'top_factors': fac,
+                    })
+            alerts.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        except Exception:
+            pass
+
+    # try live db
+    if not alerts:
+        try:
+            LIVE_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'hearth_live.db')
+            with sqlite3.connect(LIVE_DB_PATH) as conn:
+                conn.row_factory = sqlite3.Row
+                # latest high risk per patient
+                for r in conn.execute(
+                    "SELECT patient_id, MAX(computed_at_time) AS computed_at_time, "
+                    "risk_score, risk_label, top_factors "
+                    "FROM live_predictions WHERE risk_label='HIGH RISK' "
+                    "GROUP BY patient_id ORDER BY computed_at_time DESC"
+                ).fetchall():
+                    fac = []
+                    try: fac = json.loads(r['top_factors']) if r['top_factors'] else []
+                    except Exception: pass
+                    alerts.append({
+                        'id': None, 'patient_id': r['patient_id'],
+                        'alert_type': 'predictive', 'type': 'predictive',
+                        'timestamp': r['computed_at_time'], 'sim_date': r['computed_at_time'],
+                        'confidence': r['risk_score'], 'risk_label': r['risk_label'],
+                        'top_factors': fac,
+                    })
+                # latest critical per patient
+                for r in conn.execute(
+                    "SELECT patient_id, MAX(tick_time) AS tick_time, confidence "
+                    "FROM live_tick_results WHERE status='Critical' "
+                    "GROUP BY patient_id ORDER BY tick_time DESC LIMIT 100"
+                ).fetchall():
+                    alerts.append({
+                        'id': None, 'patient_id': r['patient_id'],
+                        'alert_type': 'critical', 'type': 'critical',
+                        'timestamp': r['tick_time'], 'sim_date': r['tick_time'],
+                        'confidence': r['confidence'], 'risk_label': None, 'top_factors': [],
+                    })
+            alerts.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        except Exception:
+            pass
+
+    alerts.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+    alerts = _filter_patients(alerts, allowed_pids)[:200]
     return jsonify(alerts)
 
 

@@ -71,7 +71,7 @@ def validate_sensor_reading(reading: dict) -> SensorReading:
         raise ValueError(f"Invalid sensor reading: {exc}") from exc
 
 
-# overview endpoint — merges live + static data
+# overview endpoint
 async def get_dashboard_data(sim_date=None) -> dict:
     patients, high_risk, alerts, pred_alerts = await asyncio.gather(
         asyncio.to_thread(data_logger.get_all_patients_latest),
@@ -94,7 +94,7 @@ async def get_dashboard_data(sim_date=None) -> dict:
     }
 
 
-# single patient lookup for modal
+# patient detail
 async def get_patient_detail(patient_id, history_days: int = 30) -> dict:
     history     = await asyncio.to_thread(data_logger.get_patient_history, patient_id, history_days)
     predictions = await asyncio.to_thread(data_logger.get_predictions_for_patient, patient_id, 10)
@@ -181,6 +181,7 @@ async def get_patient_context_metrics(patient_id) -> Optional[dict]:
 
     feats = engineer_features_from_window(rows)
 
+    # bucket a metric into severity tiers for the frontend badges
     def _sev(val, warn_lo, danger_lo):
         if val >= danger_lo: return "danger"
         if val >= warn_lo:   return "warning"
@@ -222,7 +223,7 @@ async def get_patient_context_metrics(patient_id) -> Optional[dict]:
     return result
 
 
-# live session patient lookup — checks live DB first
+# patient lookup
 async def lookup_patient(patient_id) -> dict:
     detail  = await get_patient_detail(patient_id)
     context = await get_patient_context_metrics(patient_id)
@@ -244,13 +245,15 @@ async def lookup_patient(patient_id) -> dict:
     }
 
 
-# sync wrappers for Flask routes that can't await
+# sync wrappers
+# flask is sync but our API layer is async, so we bridge with a thread pool
 _sync_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
 def _run_sync(coro):
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
+            # already in an event loop (e.g. jupyter), run in separate thread
             return _sync_executor.submit(asyncio.run, coro).result()
         return loop.run_until_complete(coro)
     except RuntimeError:

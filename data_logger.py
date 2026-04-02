@@ -7,18 +7,26 @@ import threading
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Optional
+import sys
+import os
+if getattr(sys, 'frozen', False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def _path(filename):
+    return os.path.join(BASE_DIR, filename)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SENSOR_DB_PATH  = os.environ.get(
-    'HEARTH_SENSOR_DB',
-    os.path.join(BASE_DIR, 'hearth_sensor.db'),
-)
-RESULTS_DB_PATH = os.path.join(BASE_DIR, 'hearth_results.db')
+SENSOR_DB_PATH = os.environ.get('HEARTH_SENSOR_DB', _path('hearth_sensor.db'))
+
+RESULTS_DB_PATH = _path('hearth_results.db')
 
 _sensor_lock    = threading.Lock()
 _results_lock   = threading.Lock()
 _tables_ensured = False
 
+# all DB writes go through this queue so we don't block the hot path
 _write_queue: queue.Queue = queue.Queue(maxsize=10_000)
 
 
@@ -69,6 +77,7 @@ def _db_conn(path, row_factory=None):
     finally:
         conn.close()
 
+# day-over-day change thresholds for "sudden change" detection
 HR_CHANGE_THRESHOLD = 20
 SPO2_CHANGE_THRESHOLD = 5
 TEMP_CHANGE_THRESHOLD = 1.0
@@ -680,7 +689,8 @@ def get_alerts_from_db(limit=100, alert_type=None):
     return results
 
 
-LIVE_DB_PATH = os.path.join(BASE_DIR, "hearth_live.db")
+# separate db for live sessions so we don't pollute batch data
+LIVE_DB_PATH = _path("hearth_live.db")
 _live_lock = threading.Lock()
 _live_initted = False
 
@@ -742,7 +752,7 @@ def init_live_db():
 
 def store_tick_results(session_id: str, tick: int, tick_time: str,
                        patient_results: list):
-    """Bulk-insert one row per patient for this tick."""
+    """Bulk-insert tick results."""
     rows = [
         (
             session_id, tick, tick_time,
@@ -768,10 +778,7 @@ def store_tick_results(session_id: str, tick: int, tick_time: str,
 
 
 def get_patient_window(session_id: str, patient_id: int, limit: int = 7) -> list:
-    """Most recent `limit` tick results for one patient, oldest-first.
-
-    Maps `status` → `worst_status` for compatibility with predict_risk().
-    """
+    """Recent tick results for a patient."""
     conn = _live_conn()
     try:
         rows = conn.execute(
@@ -782,6 +789,7 @@ def get_patient_window(session_id: str, patient_id: int, limit: int = 7) -> list
         ).fetchall()
     finally:
         conn.close()
+    # reverse so it's oldest-first, map status -> worst_status for predict_risk()
     result = []
     for r in reversed(rows):
         d = dict(r)
@@ -792,7 +800,7 @@ def get_patient_window(session_id: str, patient_id: int, limit: int = 7) -> list
 
 def store_prediction(session_id: str, tick: int, tick_time: str,
                      patient_id: int, result: dict):
-    """Upsert a 7-tick-ahead prediction for one patient."""
+    """Store a prediction."""
     conn = _live_conn()
     try:
         conn.execute(
@@ -813,7 +821,7 @@ def store_prediction(session_id: str, tick: int, tick_time: str,
 
 def get_high_risk_patients(session_id: str, at_tick: int,
                            threshold: float = 0.5) -> list:
-    """All patients predicted HIGH RISK at a given tick, sorted by score."""
+    """HIGH RISK patients at a tick."""
     conn = _live_conn()
     try:
         rows = conn.execute(
@@ -828,7 +836,7 @@ def get_high_risk_patients(session_id: str, at_tick: int,
 
 
 def get_latest_predictions(session_id: str, limit: Optional[int] = None) -> list:
-    """Most recent prediction per patient for this session, highest risk first."""
+    """Latest prediction per patient."""
     conn = _live_conn()
     try:
         rows = conn.execute(
@@ -853,7 +861,7 @@ def get_latest_predictions(session_id: str, limit: Optional[int] = None) -> list
 
 
 def get_latest_patient_states(session_id: str) -> list:
-    """Latest row per patient (most recent tick) — full vitals + status."""
+    """Latest row per patient."""
     conn = _live_conn()
     try:
         rows = conn.execute(
@@ -877,7 +885,7 @@ def get_latest_patient_states(session_id: str) -> list:
 
 
 def get_latest_tick_stats(session_id: str) -> dict:
-    """Vitals averages + status counts for the most recent tick."""
+    """Stats for the latest tick."""
     conn = _live_conn()
     try:
         latest_tick = conn.execute(
@@ -919,7 +927,7 @@ def get_latest_tick_stats(session_id: str) -> dict:
 
 
 def get_tick_series(session_id: str, n: int = 40) -> list:
-    """Per-tick Healthy/Unhealthy/Critical counts for the last n ticks (oldest-first)."""
+    """Status counts per tick."""
     conn = _live_conn()
     try:
         rows = conn.execute(
@@ -948,7 +956,7 @@ def get_tick_series(session_id: str, n: int = 40) -> list:
 
 
 def get_latest_session() -> Optional[str]:
-    """Return the session_id of the most recently started live session, or None."""
+    """Latest session ID."""
     conn = _live_conn()
     try:
         row = conn.execute(
@@ -960,7 +968,7 @@ def get_latest_session() -> Optional[str]:
 
 
 def get_session_summary(session_id: str) -> dict:
-    """Aggregate stats for a completed (or in-progress) live session."""
+    """Session stats."""
     conn = _live_conn()
     try:
         total_ticks = conn.execute(
