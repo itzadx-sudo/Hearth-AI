@@ -25,7 +25,7 @@ from tabnet_engine import (get_engine, TabNetEngine, LABEL_TO_IDX, IDX_TO_LABEL,
                            DEVICE, _DEVICE_LABEL, VITALS, N_FEATURES)
 
 LIVE_MODE       = os.environ.get("HEARTH_LIVE_MODE") == "1"
-# how often we run the 7-day predictor during a live session
+# predict every N ticks
 PREDICT_EVERY_N = 1
 
 if LIVE_MODE:
@@ -34,10 +34,11 @@ if LIVE_MODE:
 HOST = "127.0.0.1"
 PORT = 65432
 
+# how much HR/BP we subtract when the patient is active
 EXERTION_BIAS_HR  = 15.0
 EXERTION_BIAS_SBP = 15.0
-CRITICAL_CONF_THRESHOLD  = 0.75
-LOW_CONFIDENCE_THRESHOLD = 0.55
+CRITICAL_CONF_THRESHOLD  = 0.75  # only show critical alerts above this
+LOW_CONFIDENCE_THRESHOLD = 0.55  # below this, downgrade Critical -> Unhealthy
 
 
 class Colors:
@@ -161,6 +162,7 @@ class AsyncHearthServer:
             pid: idxs[-1] for pid, idxs in patient_reading_indices.items()
         }
 
+        # model path: batch inference on GPU, rule path: NEWS2 per-reading
         if self.engine.is_ready and self.engine.model is not None:
             X = self.engine.impute_all_patients(patient_reading_indices, normalized_readings)
             self.engine.model.eval()
@@ -197,7 +199,7 @@ class AsyncHearthServer:
             predicted_label = IDX_TO_LABEL[int(indices[idx])]
             conf = float(confidences[idx])
 
-            # downgrade low-confidence criticals so we don't cry wolf
+            # downgrade low-confidence criticals
             if predicted_label == "Critical" and conf < LOW_CONFIDENCE_THRESHOLD:
                 predicted_label = "Unhealthy"
                 indices[idx] = LABEL_TO_IDX["Unhealthy"]  # mutate so DB store is consistent
@@ -274,7 +276,7 @@ class AsyncHearthServer:
     def _handle_live_mode(self, tick_time: str, readings: list,
                           patient_last_idx: Dict[str, int],
                           indices, confidences, attention, feature_names):
-        # save tick results and kick off prediction if enough ticks passed
+        # store tick + maybe predict
         tick_results = []
         for pid, idx in patient_last_idx.items():
             r = readings[idx]
@@ -297,6 +299,7 @@ class AsyncHearthServer:
             self._session_id, self._tick, tick_time, tick_results
         )
 
+        # need at least 7 ticks of history before predictions make sense
         if self._tick >= 7 and self._tick % PREDICT_EVERY_N == 0:
             patient_ids = list(patient_last_idx.keys())
             self._compute_live_predictions(tick_time, patient_ids)

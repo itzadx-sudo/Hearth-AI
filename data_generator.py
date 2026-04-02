@@ -13,6 +13,7 @@ import numpy as np
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+# better hr max formula for older adults than 220-age
 def tanaka_hr_max(age: int) -> float:
     return 208.0 - 0.7 * age
 
@@ -111,8 +112,10 @@ _CRITICAL_EVENTS = [
 
 
 
+# national early warning score 2, returns (total, max_single_param)
 def _news2_score(hr: float, sbp: float, temp: float, spo2: float,
                  is_active: bool = False) -> Tuple[int, int]:
+    # subtract exertion bias so active patients don't false-alarm
     eff_hr  = max(25.0, hr  - EXERTION_BIAS["heart_rate"]) if is_active else hr
     eff_sbp = max(50.0, sbp - EXERTION_BIAS["systolic_bp"]) if is_active else sbp
 
@@ -167,6 +170,7 @@ def _sample_status(hr: float, sbp: float, spo2: float, temp: float,
     if score >= 2:
         return "Unhealthy"
 
+    # catch tachycardia + low BP combo that NEWS2 misses in elderly
     eff_hr  = max(hr  - EXERTION_BIAS["heart_rate"], 25.0) if is_active else hr
     eff_sbp = max(sbp - EXERTION_BIAS["systolic_bp"], 50.0) if is_active else sbp
     if eff_hr > 100 and eff_sbp < 110:
@@ -188,6 +192,7 @@ def _base_vitals(profile: str) -> Dict[str, float]:
     }
 
 
+# BP and HR naturally rise during the day, dip at night
 def _circadian_offset(hour: int) -> Dict[str, float]:
     t_norm = (hour - 6) / 24.0 * 2 * math.pi
     sbp_offset = 8.0 * math.sin(t_norm) - 4.0 * math.cos(t_norm)
@@ -209,6 +214,7 @@ def _healthy_reading(profile: str, base: dict, hour: int) -> dict:
     cir = _circadian_offset(hour)
     age = base.get("age", 75)
 
+    # shared noise makes vitals correlate (sick = everything shifts together)
     shared_noise = random.gauss(0, 1.0)
     is_night = (hour >= 22 or hour <= 5)
 
@@ -308,6 +314,7 @@ def _unhealthy_reading(profile: str, base: dict) -> dict:
     }
 
 
+# critical events are the ones that should trigger alerts
 def _critical_reading(base: dict) -> dict:
     event = random.choice(_CRITICAL_EVENTS)
 
@@ -357,9 +364,10 @@ def _critical_reading(base: dict) -> dict:
 
 
 
+# simulate real sensor failures - wrist HR sensors drop a lot
 HR_DROPOUT        = 0.385
 SPO2_DROPOUT      = 0.250
-SPO2_DROPOUT_FEVER= 0.420
+SPO2_DROPOUT_FEVER= 0.420  # sweaty fingers = worse pulse ox readings
 TEMP_DROPOUT      = 0.050
 
 

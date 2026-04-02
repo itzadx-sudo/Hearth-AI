@@ -8,6 +8,7 @@ LISTEN_PORT = 65431
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 65432
 
+# maps vendor-specific field names to our standard schema
 VENDOR_KEY_MAP = {
     "vendor_bpm":      "heart_rate",
     "vendor_oxygen":   "spo2",
@@ -62,6 +63,7 @@ async def _close_server_connection():
 
 
 async def forward_to_server(clean_batch: list):
+    # length-prefixed framing, same as iot_simulator
     payload = {"sim_date": datetime.now().strftime("%Y-%m-%d"), "readings": clean_batch}
     data  = json.dumps(payload).encode("utf-8")
     frame = struct.pack(">I", len(data)) + data

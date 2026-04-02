@@ -28,6 +28,7 @@ def _banner(subtitle=None):
     print(f"   {subtitle or f'Version: {VERSION}'}")
 
 
+# pipe subprocess stdout to our terminal in real time
 def _drain_output(proc):
     try:
         for line in iter(proc.stdout.readline, b''):
@@ -66,6 +67,7 @@ def _launch(label, script, *, pipe=True, fatal=False, extra_env=None):
         return None
 
 
+# kill anything squatting on our port from a previous crash
 def _free_port(port: int):
     try:
         result = subprocess.run(
@@ -112,6 +114,7 @@ def main():
 
     from tabnet_engine import CHECKPOINT_PATH as _CKPT_PATH
 
+    # no model = fallback to NEWS2 scoring, still works fine
     if not os.path.exists(_CKPT_PATH):
         print("[INFO] Model not trained — live mode will use NEWS2 rule-based triage.")
         try:

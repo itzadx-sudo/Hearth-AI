@@ -116,7 +116,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 
 /* ALERT */
 .af{display:flex;flex-direction:column;gap:.45rem}
-.alert-row{display:flex;align-items:flex-start;gap:.85rem;padding:.85rem 1rem;border-radius:12px;cursor:pointer;background:var(--cream);border:1px solid var(--border);transition:opacity .4s cubic-bezier(.4,0,.2,1),transform .4s cubic-bezier(.4,0,.2,1),box-shadow .2s}
+.alert-row{display:flex;align-items:flex-start;gap:.85rem;padding:.85rem 1rem;border-radius:12px;cursor:pointer;background:var(--cream);border:1px solid var(--border);transition:opacity .2s ease,transform .25s cubic-bezier(.4,0,.2,1),box-shadow .2s}
 .alert-row:hover{background:white;box-shadow:var(--shadow-sm);transform:translateX(3px)}
 .alert-enter{opacity:0;transform:translateY(-8px) scale(.99);max-height:0;overflow:hidden}
 .alert-exit{opacity:0!important;transform:translateX(20px) scale(.97)!important;pointer-events:none;max-height:0!important;padding-top:0!important;padding-bottom:0!important;margin:0!important;border-width:0!important;overflow:hidden;transition:opacity .25s cubic-bezier(.4,0,.2,1),transform .25s cubic-bezier(.4,0,.2,1),max-height .25s cubic-bezier(.4,0,.2,1),padding .25s ease,border-width .25s ease!important}
@@ -313,7 +313,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
   </div>
   <div class="bottom-grid">
     <div class="card"><div class="card-head"><div><div class="card-title">Risk Leaderboard</div><div class="card-sub">Top 7-day predicted risk</div></div></div><div class="card-body"><div class="lb-list" id="lb-list"><div class="empty"><div class="ld"></div></div></div></div></div>
-    <div class="card"><div class="card-head"><div><div class="card-title">Recent Alerts</div><div class="card-sub">Critical &amp; predictive</div></div></div><div class="card-body"><div class="af" id="alerts-prev"><div class="empty"><div class="ld"></div></div></div></div></div>
+    <div class="card"><div class="card-head"><div><div class="card-title">Live Alerts</div><div class="card-sub">Live critical &amp; predictive</div></div></div><div class="card-body"><div class="af" id="alerts-prev"><div class="empty"><div class="ld"></div></div></div></div></div>
   </div>
 </div>
 
@@ -344,10 +344,15 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 <!-- ═══ ALERTS ═══ -->
 <div class="page" id="page-alerts">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-    <div class="sec-title" style="margin:0">Alert Feed</div>
+    <div class="sec-title" style="margin:0">Alert History</div>
     <div style="display:flex;gap:8px"><button class="pill af-pill active" id="af-all" onclick="fAlert('all')">All</button><button class="pill af-pill" id="af-crit" style="color:var(--rose)" onclick="fAlert('critical')">Critical</button><button class="pill af-pill" id="af-pred" onclick="fAlert('predictive')">Predictive</button></div>
   </div>
   <div class="af" id="al-list"></div>
+  <div id="al-pagination" style="display:none;align-items:center;justify-content:flex-end;gap:10px;margin-top:14px;font-size:.82rem;color:var(--ink-muted);font-weight:500">
+    <button id="al-prev" onclick="alPage(-1)" style="border:1px solid var(--border);background:var(--cream);border-radius:9px;padding:5px 14px;cursor:pointer;font-size:.8rem;font-weight:600;color:var(--ink-muted)">← Prev</button>
+    <span id="al-page-info">Page 1</span>
+    <button id="al-next" onclick="alPage(1)" style="border:1px solid var(--border);background:var(--cream);border-radius:9px;padding:5px 14px;cursor:pointer;font-size:.8rem;font-weight:600;color:var(--ink-muted)">Next →</button>
+  </div>
 </div>
 
 <!-- ═══ SYSTEM ═══ -->
@@ -458,7 +463,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
           <div>
             <label style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink-muted);display:block;margin-bottom:8px">Patient ID</label>
             <div class="ac-wrap" style="display:block;width:100%">
-              <input id="assign-pid" type="text" placeholder="Enter patient ID…" class="auth-input" style="margin:0;border-radius:12px;width:100%;text-align:left" autocomplete="off"
+              <input id="assign-pid" type="text" placeholder="Enter patient ID…" class="auth-input" style="margin:0;border-radius:12px;width:100%;text-align:center" autocomplete="off"
                 oninput="_acPid(this)" onblur="setTimeout(()=>_acHide('pid-ac'),150)" onkeydown="_acKey(event,'pid-ac')">
               <div class="ac-drop" id="pid-ac"></div>
             </div>
@@ -501,16 +506,16 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
         </div>
         <!-- Right: actions -->
         <div style="padding:32px 36px;display:flex;flex-direction:column;gap:14px;justify-content:center">
-          <button class="pill" onclick="editGuardianName()" style="text-align:left;display:flex;justify-content:space-between;padding:14px 18px;border-radius:14px;font-size:.85rem">
+          <button class="pill" onclick="editGuardianName()" style="text-align:center;display:flex;justify-content:center;gap:8px;padding:14px 18px;border-radius:14px;font-size:.85rem">
             <span id="g-display-name">Edit Profile Name</span><span style="opacity:0.5">→</span>
           </button>
-          <button class="pill" onclick="showToast('A password reset link has been sent to your email.')" style="text-align:left;display:flex;justify-content:space-between;padding:14px 18px;border-radius:14px;font-size:.85rem">
+          <button class="pill" onclick="showToast('A password reset link has been sent to your email.')" style="text-align:center;display:flex;justify-content:center;gap:8px;padding:14px 18px;border-radius:14px;font-size:.85rem">
             <span>Edit Password</span><span style="opacity:0.5">→</span>
           </button>
-          <button class="pill" onclick="showToast('Your request for access to a new patient has been submitted.')" style="text-align:left;display:flex;justify-content:space-between;padding:14px 18px;border-radius:14px;font-size:.85rem;background:var(--teal);color:white;border-color:transparent">
-            <span>Request access for a new patient</span><span style="opacity:0.8">→</span>
+          <button class="pill" onclick="showToast('Your request for access to a new patient has been submitted.')" style="text-align:center;display:flex;justify-content:center;gap:8px;padding:14px 18px;border-radius:14px;font-size:.85rem">
+            <span>Request access for a new patient</span><span style="opacity:0.5">→</span>
           </button>
-          <button class="pill" onclick="openBugReport()" style="text-align:left;display:flex;justify-content:space-between;padding:14px 18px;border-radius:14px;font-size:.85rem">
+          <button class="pill" onclick="openBugReport()" style="text-align:center;display:flex;justify-content:center;gap:8px;padding:14px 18px;border-radius:14px;font-size:.85rem">
             <span>Report a Bug</span><span style="opacity:0.5">→</span>
           </button>
         </div>
@@ -590,20 +595,20 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 
 
 <script>
-// globals
-let PTS=[], ALS=[], aFilt='all', sQ='', IS_LIVE=false;
+// state
+let PTS=[], ALS=[], aFilt='all', sQ='', IS_LIVE=false; // IS_LIVE flips when server sends live session data
 let vCh=null, dCh=null, tsCh=null;
 let currentRole = null, currentUserDisp = null, isSignup = false, openModalPid = null;
 let _ov_pred_map = {};
 const PT={patients:['Patients','Patient Registry'],live:['Live Monitor','Real-Time 7-Day Predictions'],alerts:['Alerts','Critical & Predictive Alert Feed'],system:['System','Model & Database Health']};
 
-// nav switching — hide all pages, show the one we want
+// nav switching
 function go(p){
   document.querySelectorAll('.page').forEach(x=>{x.classList.remove('active');x.classList.remove('page-transition');});
   document.querySelectorAll('.nav-link').forEach(x=>x.classList.remove('active'));
   const pg=document.getElementById('page-'+p);
   pg.classList.add('active');
-  void pg.offsetWidth; // force reflow
+  void pg.offsetWidth;
   pg.classList.add('page-transition');
   document.querySelector('[data-page="'+p+'"]').classList.add('active');
   if(p==='overview'){
@@ -616,11 +621,11 @@ function go(p){
   }
   if(p==='patients')loadPts();
   if(p==='live')loadLive();
-  if(p==='alerts')loadAlerts();
+  if(p==='alerts')loadAlerts(true);
   if(p==='system')loadSys();
 }
 function refresh(){const a=document.querySelector('.nav-link.active');if(a)go(a.dataset.page);loadOv();}
-// fetch wrapper that catches 503 (server busy during training)
+// fetch with training-mode guard
 function ft(u){
   return fetch(u).then(r=>{
     if(r.status===503){
@@ -631,7 +636,7 @@ function ft(u){
   });
 }
 
-// animate a number counting up (stat counters)
+// counter animation
 function cnt(id,n,dur=900){
   const el=document.getElementById(id);if(!el)return;
   const end=parseInt(n)||0,prev=parseInt(el.textContent)||0;
@@ -643,7 +648,7 @@ function cnt(id,n,dur=900){
 }
 function _tc(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
 
-// ring chart math — circumference for SVG arcs
+// ring chart math
 const CIRC=2*Math.PI*32;
 function setRing(id,val,total,severity){
   const el=document.getElementById(id);if(!el)return;
@@ -656,12 +661,12 @@ function setRing(id,val,total,severity){
   el.style.strokeDashoffset=target;
   const color = severity==='critical'?'var(--rose)'
               : severity==='watch'   ?'var(--amber)'
-              : 'var(--teal)'; // healthy = green
+              : 'var(--teal)';
   el.style.stroke=color;
   if(numEl)numEl.style.color=color;
 }
 
-// toast popup — reuses a single DOM element
+// toast popup
 let _toastTimer=null;
 function showToast(msg){
   let t=document.getElementById('app-toast');
@@ -673,7 +678,7 @@ function showToast(msg){
   requestAnimationFrame(()=>{t.classList.add('show');_toastTimer=setTimeout(()=>t.classList.remove('show'),3500);});
 }
 
-// main data loader — pulls everything for the overview tab
+// overview data loader
 async function loadOv(){
   try{
     const d=await ft('/api/overview');
@@ -696,7 +701,7 @@ async function loadOv(){
   }catch(e){if(e.message!=='training')console.error('ov',e);}
 }
 
-// patch risk scores into patient table rows — animates bars from pending to filled
+// patch risk scores into patient table
 function _patchPtTableRiskScores(){
   const tb=document.getElementById('pt-tbody');
   if(!tb)return;
@@ -713,7 +718,7 @@ function _patchPtTableRiskScores(){
     const rv=row.querySelector('.rv');
     if(rv){rv.style.opacity='1';rv.textContent=(sc*100).toFixed(0)+'%';}
     const chip=row.querySelector('.chip');
-    const st=src.status||src.worst_status||'Unknown';
+    var st=src.status||src.worst_status;if(!st||st==='Unknown'){if(sc>=.5)st='Critical';else st='Healthy';}
     if(chip){chip.className='chip '+(st==='Critical'?'cc_':st==='Unhealthy'?'cw_':st==='Healthy'?'co_':'cn_');chip.textContent=st;}
   });
 }
@@ -773,11 +778,11 @@ function drawStats(d){
   }
 }
 
-// build leaderboard rows — top 8 by risk
+// leaderboard
 function drawLb(rows){
   const el=document.getElementById('lb-list');
   if(!rows.length){el.innerHTML='<div class="empty">No predictions yet — will appear after day 7</div>';return;}
-  // clear initial loading spinner
+  // clear spinner
   const emptyEl=el.querySelector('.empty');if(emptyEl)emptyEl.remove();
   const top8=rows.slice(0,8);
   const existingRows=[...el.querySelectorAll('.lb-row')];
@@ -805,45 +810,73 @@ function drawLb(rows){
       requestAnimationFrame(()=>{div.style.animation=`ptRowIn .22s cubic-bezier(.22,1,.36,1) ${i*30}ms both`;});
     }
   });
-  // trim extra rows if leaderboard shrank
+  // trim extras
   while(el.querySelectorAll('.lb-row').length>top8.length){el.lastElementChild.remove();}
 }
 
-// recent alerts sidebar on overview page
+// live alerts sidebar
 function drawAlertPrev(als){
   const el=document.getElementById('alerts-prev');
-  if(!als.length){el.innerHTML='<div class="empty">No active alerts</div>';return;}
-  const emptyAl=el.querySelector('.empty');if(emptyAl)emptyAl.remove();
   const top7=als.slice(0,7);
-  const existingRows=[...el.querySelectorAll('.alert-row')];
 
-  top7.forEach((a,i)=>{
+  // existing rows
+  const existingMap={};
+  el.querySelectorAll('.alert-row[data-key]').forEach(row=>existingMap[row.dataset.key]=row);
+  const newKeys=new Set(top7.map(a=>String(a.patient_id)+(a.alert_type||a.type||'')));
+
+  // remove resolved alerts
+  let anyExiting=false;
+  Object.entries(existingMap).forEach(([key,row])=>{
+    if(!newKeys.has(key)){
+      anyExiting=true;
+      row.classList.add('alert-exit');
+      setTimeout(()=>row.remove(),280);
+    }
+  });
+
+  if(!top7.length){
+    // empty state
+    setTimeout(()=>{
+      if(!el.querySelectorAll('.alert-row[data-key]').length)
+        el.innerHTML='<div class="empty">No active alerts</div>';
+    },anyExiting?300:0);
+    return;
+  }
+
+  const emptyEl=el.querySelector('.empty');if(emptyEl)emptyEl.remove();
+
+  top7.forEach((a)=>{
+    const key=String(a.patient_id)+(a.alert_type||a.type||'');
     const c=(a.alert_type||a.type||'')==='critical';
     const conf=a.confidence!=null?((a.confidence||0)*100).toFixed(0)+'% conf':'';
     const html=`<div class="alert-dot ${c?'cr':'pr'}"></div>
       <div style="flex:1"><div class="alert-title">Patient ${a.patient_id} — ${_tc(a.alert_type||a.type||'Alert')}</div>
       <div class="alert-meta">${a.sim_date||a.timestamp||''}${conf?' · '+conf:''}</div></div>
       <span class="alert-chip ${c?'cc_':'cw_'}">${c?'Critical':'Predictive'}</span>`;
-    if(existingRows[i]){
-      existingRows[i].setAttribute('onclick','openModal('+a.patient_id+')');
-      existingRows[i].innerHTML=html;
+    if(existingMap[key]){
+      existingMap[key].setAttribute('onclick','openModal('+a.patient_id+')');
+      existingMap[key].innerHTML=html;
     } else {
-      const div=document.createElement('div');div.className='alert-row';
+      const div=document.createElement('div');
+      div.className='alert-row alert-enter';
+      div.dataset.key=key;
       div.setAttribute('onclick','openModal('+a.patient_id+')');
-      div.innerHTML=html;div.style.opacity='0';el.appendChild(div);
-      requestAnimationFrame(()=>{div.style.animation=`ptRowIn .22s cubic-bezier(.22,1,.36,1) ${i*30}ms both`;});
+      div.innerHTML=html;
+      el.appendChild(div);
+      void div.offsetWidth;
+      div.style.transition='opacity .3s cubic-bezier(.22,1,.36,1),transform .3s cubic-bezier(.22,1,.36,1),max-height .3s cubic-bezier(.22,1,.36,1)';
+      div.style.opacity='1';div.style.transform='none';div.style.maxHeight='120px';
     }
   });
-  while(el.querySelectorAll('.alert-row').length>top7.length){el.lastElementChild.remove();}
 }
 
-// threshold config for vital sign severity coloring
+// vital severity thresholds
 const VITAL_THRESHOLDS={
-  'Heart Rate':   {watch:[100,null],critical:[120,null],low:[null,50]},   // bpm
-  'Systolic BP':  {watch:[140,null],critical:[160,null],low:[null,90]},   // mmHg
-  'Diastolic BP': {watch:[90,null], critical:[100,null],low:[null,60]},   // mmHg
-  'Temp×10':      {watch:[375,null],critical:[385,null],low:[null,350]},  // ×10 °C
-  'SpO\u2082':   {watch:[null,93], critical:[null,90], low:null},         // %
+  'Heart Rate':   {watch:[100,null],critical:[120,null],low:[null,50]},
+  'Systolic BP':  {watch:[140,null],critical:[160,null],low:[null,90]},
+  'Diastolic BP': {watch:[90,null], critical:[100,null],low:[null,60]},
+  'Temp×10':      {watch:[375,null],critical:[385,null],low:[null,350]},
+  'SpO\u2082':   {watch:[null,93], critical:[null,90], low:null},
 };
 
 function _vitalSeverity(label, value) {
@@ -866,6 +899,7 @@ function _vitalSeverity(label, value) {
 function _lerpRGB(a,b,t){
   return [Math.round(a[0]+(b[0]-a[0])*t),Math.round(a[1]+(b[1]-a[1])*t),Math.round(a[2]+(b[2]-a[2])*t)];
 }
+// lerp between color stops based on value - used for vital heatmaps
 function _colFromStops(v,stops){
   if(v==null||isNaN(v))return '#7A6F62';
   if(v<=stops[0][0])return`rgb(${stops[0][1].join(',')})`;
@@ -878,47 +912,47 @@ function _colFromStops(v,stops){
   return`rgb(${stops[stops.length-1][1].join(',')})`;
 }
 const HR_STOPS=[
-  [ 46, [220, 38, 38]],   // severe critical-low  → vivid red
-  [ 55, [249,115, 22]],   // watch-low            → vivid orange
-  [ 63, [ 22,163, 74]],   // low-normal           → rich green
-  [ 78, [  5,150,105]],   // optimal              → deep emerald
-  [ 88, [ 22,163, 74]],   // high-normal          → rich green
-  [100, [234,179,  8]],   // borderline watch     → vivid yellow
-  [112, [249,115, 22]],   // watch                → vivid orange
-  [125, [220, 60, 38]],   // high watch           → orange-red
-  [145, [220, 38, 38]],   // deep critical-high   → vivid red
+  [ 46, [220, 38, 38]],
+  [ 55, [249,115, 22]],
+  [ 63, [ 22,163, 74]],
+  [ 78, [  5,150,105]],
+  [ 88, [ 22,163, 74]],
+  [100, [234,179,  8]],
+  [112, [249,115, 22]],
+  [125, [220, 60, 38]],
+  [145, [220, 38, 38]],
 ];
 const SPO2_STOPS=[
-  [83, [220, 38, 38]],   // severe critical → vivid red
-  [88, [220, 60, 38]],   // critical        → orange-red
-  [91, [249,115, 22]],   // watch           → vivid orange
-  [93, [234,179,  8]],   // borderline      → vivid yellow
-  [95, [ 22,163, 74]],   // low-normal      → rich green
-  [99, [  5,150,105]],   // optimal         → deep emerald
+  [83, [220, 38, 38]],
+  [88, [220, 60, 38]],
+  [91, [249,115, 22]],
+  [93, [234,179,  8]],
+  [95, [ 22,163, 74]],
+  [99, [  5,150,105]],
 ];
 function hrColor(v){return _colFromStops(v,HR_STOPS);}
 function spo2Color(v){return _colFromStops(v,SPO2_STOPS);}
 function riskColor(score){
   return _colFromStops((score||0)*100,[
-    [  0, [  5,150,105]],  //   0% → deep emerald
-    [ 20, [ 22,163, 74]],  //  20% → rich green
-    [ 40, [234,179,  8]],  //  40% → vivid yellow
-    [ 55, [249,115, 22]],  //  55% → vivid orange
-    [ 75, [220, 60, 38]],  //  75% → orange-red
-    [100, [220, 38, 38]],  // 100% → vivid red
+    [  0, [  5,150,105]],
+    [ 20, [ 22,163, 74]],
+    [ 40, [234,179,  8]],
+    [ 55, [249,115, 22]],
+    [ 75, [220, 60, 38]],
+    [100, [220, 38, 38]],
   ]);
 }
 const ATTN_STOPS=[
-  [  0, [  5,150,105]],  //   0% of max → deep emerald
-  [ 15, [ 22,163, 74]],  //  15% of max → rich green
-  [ 50, [234,179,  8]],  //  50% of max → vivid yellow  ← centre of visual range
-  [ 70, [249,115, 22]],  //  70% of max → vivid orange
-  [ 85, [220, 60, 38]],  //  85% of max → orange-red
-  [100, [220, 38, 38]],  // 100% of max → vivid red
+  [  0, [  5,150,105]],
+  [ 15, [ 22,163, 74]],
+  [ 50, [234,179,  8]],
+  [ 70, [249,115, 22]],
+  [ 85, [220, 60, 38]],
+  [100, [220, 38, 38]],
 ];
 function attnColor(relPct){return _colFromStops(relPct,ATTN_STOPS);}
 
-// bar chart color arrays for normal / warning states
+// bar chart colors
 const SEV_BAR_BG={critical:'rgba(184,74,90,.68)',watch:'rgba(201,106,30,.65)','':[]};
 const SEV_BAR_BORDER={critical:'#B84A5A',watch:'#C96A1E','':''};
 const DEFAULT_BAR_BG=['rgba(184,74,90,.55)','rgba(201,106,30,.55)','rgba(200,168,75,.55)','rgba(42,125,107,.6)','rgba(60,166,140,.6)'];
@@ -965,7 +999,7 @@ function _buildVitalsAverages(ps, range){
   };
 }
 
-// recalculate vitals chart when user picks a different time range
+// vitals chart range picker
 function _applyVitalsRange(d){
   const ps=d.patients||[];
   const avgs=_buildVitalsAverages(ps,_vitalsRange);
@@ -1011,9 +1045,9 @@ function _applyVitalsRange(d){
   }
 }
 
-// draw donut + bar charts, runs on every poll
+// draw donut + bar charts
 function drawCharts(d){
-  _lastOvData=d;  // cache for range switching
+  _lastOvData=d;
   const ps=d.patients||[];
   const cr=ps.filter(p=>_statusOf(p)==='Critical').length;
   const un=ps.filter(p=>_statusOf(p)==='Unhealthy').length;
@@ -1030,7 +1064,7 @@ function drawCharts(d){
 }
 </script>
 <script>
-// patient table — paginated, sortable by ID
+// patient table
 async function loadPts(){
   try{
     const fresh=await ft('/api/patients');
@@ -1054,23 +1088,16 @@ function _vitalCell(val,unit){
   if(val==null)return`<span class="vital-missing" data-tip="Empty — sensor failure">—</span>`;
   return`<span class="vv">${val.toFixed(unit==='bpm'?0:unit==='mmHg'?0:1)} ${unit}</span>`;
 }
-// update a vital cell in-place — fades the number out, swaps text, fades back in
+// update vital cell
 function _updateVital(td,val,unit){
   var newText=val==null?null:val.toFixed(unit==='bpm'?0:unit==='mmHg'?0:1)+' '+unit;
   var vv=td.querySelector('.vv');
   if(vv){
     if(vv.textContent===newText)return false;
-    // fade out, update text directly (no innerHTML swap), fade back in
-    vv.style.opacity='0';
-    setTimeout(function(){
-      if(val==null){td.innerHTML=_vitalCell(val,unit);}else{vv.textContent=newText;vv.style.opacity='1';}
-    },200);
+    if(val==null){td.innerHTML=_vitalCell(val,unit);}else{vv.textContent=newText;}
     return true;
   }
-  // no .vv yet — set and animate in
   td.innerHTML=_vitalCell(val,unit);
-  var nv=td.querySelector('.vv');
-  if(nv){nv.style.opacity='0';requestAnimationFrame(function(){nv.style.opacity='1';});}
   return true;
 }
 function _renderPtPage(sorted,pages,animate){
@@ -1079,29 +1106,29 @@ function _renderPtPage(sorted,pages,animate){
     document.getElementById('pt-pagination').style.display='none';return;}
   const start=_ptPage*PT_PER_PAGE;const slice=sorted.slice(start,start+PT_PER_PAGE);
 
-  // clear the initial loading spinner once real data arrives
+  // clear spinner
   const emptyRow=tb.querySelector('.empty');if(emptyRow){const tr=emptyRow.closest('tr');if(tr)tr.remove();}
 
-  // build a map of existing rows so we can update in-place
+  // existing rows
   const existing={};
   tb.querySelectorAll('tr[data-pid]').forEach(row=>existing[row.dataset.pid]=row);
   const newPids=new Set(slice.map(p=>String(p.patient_id)));
 
-  // remove rows no longer on this page
+  // remove stale rows
   Object.keys(existing).forEach(pid=>{if(!newPids.has(pid))existing[pid].remove();});
 
   slice.forEach((p,i)=>{
     const pid=String(p.patient_id);
     const sc=p.risk_score;const hasSc=sc!=null&&sc>0;
-    // derive status from risk score if the model hasn't classified yet
+    // derive status from risk score
     var st=p.worst_status||p.status;
-    if(!st||st==='Unknown'){if(hasSc){if(sc>=.5)st='Critical';else if(sc>=.2)st='Unhealthy';else st='Healthy';}else st=p.risk_label||'Healthy';}
+    if(!st||st==='Unknown'){if(hasSc&&sc>=.5)st='Critical';else st='Healthy';}
     const cls=hasSc?(sc>=.5?'hi':sc>=.2?'med':'lo'):'';
     const ch=st==='Critical'?'cc_':st==='Unhealthy'?'cw_':st==='Healthy'?'co_':'cn_';
     const spo2=p.avg_spo2??p.spo2;const hr=p.avg_heart_rate??p.heart_rate;const sbp=p.avg_systolic??p.systolic_bp;
     const row=existing[pid];
     if(row){
-      // update cells in-place — flash row if anything changed
+      // update cells
       const cells=row.children;
       let changed=false;
       const chipEl=cells[1].querySelector('.chip');
@@ -1115,7 +1142,7 @@ function _renderPtPage(sorted,pages,animate){
       if(_updateVital(cells[5],hr,'bpm'))changed=true;
       if(_updateVital(cells[6],sbp,'mmHg'))changed=true;
     } else {
-      // new row — build and insert
+      // new row
       const tr=document.createElement('tr');
       tr.dataset.pid=pid;
       tr.setAttribute('onclick','openModal('+p.patient_id+')');
@@ -1125,8 +1152,8 @@ function _renderPtPage(sorted,pages,animate){
         <td>${_vitalCell(spo2,'%')}</td><td>${_vitalCell(hr,'bpm')}</td><td>${_vitalCell(sbp,'mmHg')}</td>
         <td><button class="pill" style="font-size:11px;padding:4px 10px" onclick="event.stopPropagation();openModal(${p.patient_id})">Detail</button></td>`;
       tb.appendChild(tr);
-      // always animate new rows in
-      tr.style.opacity='0';requestAnimationFrame(()=>{tr.style.animation=`ptRowIn .22s cubic-bezier(.22,1,.36,1) ${i*12}ms both`;});
+      // fade in
+      tr.style.opacity='0';requestAnimationFrame(()=>{tr.style.animation='ptRowIn .18s cubic-bezier(.22,1,.36,1) both';});
     }
   });
   const pg=document.getElementById('pt-pagination');
@@ -1141,7 +1168,7 @@ function onSearch(q){clearTimeout(searchTimeout);sQ=q.trim();if(!sQ){if(PTS.leng
 const FACTOR_TRANSLATIONS={'Neural_Trajectory':'Adverse Trajectory','critical_ratio':'High Critical History','unhealthy_trend':'Declining Health','heart_rate':'Heart Rate Anomaly','systolic_bp':'BP Alert','diastolic_bp':'Diastolic Pressure','body_temp':'Temperature Deviation','spo2':'SpO₂ Drop','activity':'Activity Change','resting_high_hr_days':'Elevated Resting HR','low_spo2_days':'Chronic Low SpO₂','fever_days':'Recurring Fever','spo2_temp_danger_days':'SpO₂+Temp Risk','critical_escalation':'Rapid Deterioration','activity_decline':'Mobility Decline','confidence_trend':'Confidence Shift'};
 function _translateFactor(f){return FACTOR_TRANSLATIONS[f]||f.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());}
 
-// live monitor tab — session stats + tick series chart
+// live monitor tab
 async function loadLive(){try{const d=await ft('/api/live');renderLive(d);}catch(e){if(e.message!=='training')console.error('live',e);}}
 function renderLive(d){
   if(!d.session_id){
@@ -1163,15 +1190,15 @@ function renderLive(d){
     tb.innerHTML=t<7?`<tr><td colspan="5" class="empty">Predictions start after day 7. Currently at day ${t}.</td></tr>`:'<tr><td colspan="5" class="empty">Predictions update every day — refresh shortly.</td></tr>';
     return;
   }
-  // in-place reconciliation — keyed by patient_id so risk bars animate via CSS transition
+  // reconcile rows by patient_id
   const existing={};
   tb.querySelectorAll('tr[data-pid]').forEach(row=>existing[row.dataset.pid]=row);
   const newPids=new Set(preds.map(p=>String(p.patient_id)));
-  // remove stale rows with a fade-out
+  // remove stale rows
   Object.entries(existing).forEach(([pid,row])=>{
     if(!newPids.has(pid)){row.style.opacity='0';setTimeout(()=>row.remove(),200);}
   });
-  // clear any placeholder rows (empty/loading state)
+  // clear placeholders
   tb.querySelectorAll('tr:not([data-pid])').forEach(r=>r.remove());
   preds.forEach((p,i)=>{
     const pid=String(p.patient_id);
@@ -1182,19 +1209,19 @@ function renderLive(d){
     const facStr=fac.slice(0,2).map(f=>_translateFactor(f)).join(', ')||'—';
     const row=existing[pid];
     if(row){
-      // update chip
+      // chip
       const chip=row.querySelector('.chip');
       if(chip){chip.className='chip '+chipCls;chip.textContent=p.risk_label||'—';}
-      // update risk bar class (color) and bar width — CSS handles the smooth transition
+      // risk bar
       const rb=row.querySelector('.rb');if(rb)rb.className='rb '+cls;
       const rf=row.querySelector('.rf');if(rf)rf.style.width=sc*100+'%';
       const rv=row.querySelector('.rv');if(rv)rv.textContent=(sc*100).toFixed(0)+'%';
-      // update factors
+      // factors
       const cells=row.children;
       if(cells[3])cells[3].textContent=facStr;
       if(cells[4])cells[4].textContent=p.computed_at_time||'—';
     } else {
-      // new row — build, insert, animate in
+      // new row
       const tr=document.createElement('tr');
       tr.dataset.pid=pid;
       tr.style.cursor='pointer';
@@ -1206,7 +1233,7 @@ function renderLive(d){
         +`<td style="font-size:11px;color:var(--ink-muted)">${p.computed_at_time||'—'}</td>`;
       tr.style.opacity='0';
       tb.appendChild(tr);
-      // stagger entrance, then animate risk bar to its target width
+      // stagger + animate bar
       requestAnimationFrame(()=>{
         tr.style.transition='opacity .25s ease '+i*20+'ms';
         tr.style.opacity='1';
@@ -1230,10 +1257,20 @@ function drawTickSeries(series){
       scales:{y:{beginAtZero:true,grid:{color:'rgba(26,22,17,.04)'},ticks:{color:'#7A6F62',font:{size:10,family:'DM Sans'},stepSize:1}},x:{grid:{display:false},ticks:{color:'#7A6F62',font:{size:10,family:'DM Sans'},maxTicksLimit:12}}},animation:{duration:300,easing:'easeOutQuart'}}});
 }
 
-// full alert feed with filter buttons
-async function loadAlerts(){try{ALS=await ft('/api/alerts');renderAlerts(ALS);}catch(e){if(e.message!=='training')console.error(e);}}
+// alert history
+let _alPage=0;
+const AL_PER_PAGE=20;
+async function loadAlerts(resetPage=false){
+  try{ALS=await ft('/api/alerts');if(resetPage)_alPage=0;renderAlerts(ALS);}catch(e){if(e.message!=='training')console.error(e);}
+}
+function alPage(dir){
+  const f=aFilt==='all'?ALS:ALS.filter(a=>(a.type||a.alert_type||'')===aFilt);
+  const pages=Math.ceil(f.length/AL_PER_PAGE);
+  _alPage=Math.max(0,Math.min(_alPage+dir,pages-1));
+  renderAlerts(ALS);
+}
 function fAlert(t){
-  aFilt=t;
+  aFilt=t;_alPage=0;
   ['all','crit','pred'].forEach(id=>{
     const btn=document.getElementById('af-'+id);
     if(btn)btn.classList.toggle('active',
@@ -1241,20 +1278,29 @@ function fAlert(t){
   });
   renderAlerts(ALS);
 }
+// DOM reconciliation: match by patient+type key, fade in new, fade out stale
 function renderAlerts(als){
   const f=aFilt==='all'?als:als.filter(a=>(a.type||a.alert_type||'')===aFilt);
   const el=document.getElementById('al-list');
-  if(!f.length){el.innerHTML='<div class="empty">No alerts</div>';return;}
+  if(!f.length){el.innerHTML='<div class="empty">No alerts</div>';
+    document.getElementById('al-pagination').style.display='none';return;}
 
+  const pages=Math.ceil(f.length/AL_PER_PAGE);
+  _alPage=Math.min(_alPage,Math.max(0,pages-1));
+  const slice=f.slice(_alPage*AL_PER_PAGE,(_alPage+1)*AL_PER_PAGE);
+
+  // existing rows by key
   const existingMap={};
   el.querySelectorAll('.alert-row[data-key]').forEach(row=>existingMap[row.dataset.key]=row);
-  const newKeys=new Set(f.map(a=>String(a.patient_id)+(a.type||a.alert_type||'')));
+  const newKeys=new Set(slice.map(a=>String(a.patient_id)+(a.type||a.alert_type||'')));
 
+  // remove old rows
   Object.entries(existingMap).forEach(([key,row])=>{
-    if(!newKeys.has(key)){row.classList.add('alert-exit');setTimeout(()=>row.remove(),200);}
+    if(!newKeys.has(key)){row.classList.add('alert-exit');setTimeout(()=>row.remove(),280);}
   });
 
-  f.forEach((a,idx)=>{
+  let _newIdx=0;
+  slice.forEach((a,idx)=>{
     const key=String(a.patient_id)+(a.type||a.alert_type||'');
     const c=(a.alert_type||a.type||'')==='critical';
     let fac=[];try{fac=Array.isArray(a.top_factors)?a.top_factors:[];}catch{}
@@ -1265,26 +1311,38 @@ function renderAlerts(als){
       ${fac.length?'<div class="alert-meta">'+fac.slice(0,3).join(' · ')+'</div>':''}</div>
       <span class="alert-chip ${c?'cc_':'cw_'}">${_tc(a.type||a.alert_type||'—')}</span>`;
     if(existingMap[key]){
-      existingMap[key].innerHTML=html; // in-place update, no animation needed
+      existingMap[key].innerHTML=html;
     } else {
       const row=document.createElement('div');
-      row.className='alert-row alert-enter';
+      row.className='alert-row';
       row.dataset.key=key;
       row.setAttribute('onclick','openModal('+a.patient_id+')');
       row.innerHTML=html;
-      const refRow=el.querySelectorAll('.alert-row[data-key]')[idx];
-      el.insertBefore(row,refRow||null);
-      // force layout so the enter state registers before we animate
+      // insert at correct position
+      let anchor=null;
+      for(let j=idx+1;j<slice.length;j++){
+        const nk=String(slice[j].patient_id)+(slice[j].type||slice[j].alert_type||'');
+        if(existingMap[nk]){anchor=existingMap[nk];break;}
+      }
+      const delay=_newIdx*35;_newIdx++;
+      row.style.opacity='0';
+      row.style.transition=`opacity .2s ease ${delay}ms`;
+      el.insertBefore(row,anchor);
       void row.offsetWidth;
-      row.style.transition='opacity .3s cubic-bezier(.22,1,.36,1),transform .3s cubic-bezier(.22,1,.36,1),max-height .3s cubic-bezier(.22,1,.36,1)';
-      row.style.opacity='1';
-      row.style.transform='none';
-      row.style.maxHeight='160px';
+      row.style.opacity='';
+      row.addEventListener('transitionend',()=>{row.style.transition='';},{ once:true });
     }
   });
+
+  // pagination
+  const pg=document.getElementById('al-pagination');
+  pg.style.display=pages>1?'flex':'none';
+  document.getElementById('al-page-info').textContent=`Page ${_alPage+1} of ${pages}`;
+  document.getElementById('al-prev').style.display=_alPage===0?'none':'inline-block';
+  document.getElementById('al-next').style.display=_alPage>=pages-1?'none':'inline-block';
 }
 
-// system panel — model status, DB stats
+// system panel
 async function loadSys(){
   try{const h=await ft('/api/system');
     const loaded=h.model_status==='loaded';
@@ -1313,7 +1371,7 @@ async function loadSys(){
 const FEAT_LABELS={'heart_rate':'Heart Rate','systolic_bp':'Systolic BP','diastolic_bp':'Diastolic BP','body_temp':'Temperature','spo2':'SpO₂','activity':'Activity Level'};
 let patientTrendChart=null;
 
-// patient detail modal — merges cached prediction data with fresh fetch
+// patient detail modal
 async function openModal(pid){
   openModalPid=pid;
   document.getElementById('m-title').textContent='Patient #'+pid;
@@ -1370,10 +1428,10 @@ async function searchPatient(pid){
   catch(e){try{const d=await ft('/api/patients/'+pid);renderModal(d);}catch{document.getElementById('m-body').innerHTML='<div class="empty">Patient not found</div>';}}
 }
 
-// live modal — in-place DOM updates if already open for this patient
+// live modal
 function renderLivePatientModal(p,sid){
   const body=document.getElementById('m-body');
-  const st=p.status||'Unknown';const sch=st==='Critical'?'cc_':st==='Unhealthy'?'cw_':st==='Healthy'?'co_':'cn_';
+  var st=p.status||p.worst_status;if(!st||st==='Unknown')st='Healthy';const sch=st==='Critical'?'cc_':st==='Unhealthy'?'cw_':st==='Healthy'?'co_':'cn_';
   const pr=p.prediction;const hist=p.history||[];const att=p.attention||{};
   const existing=body.querySelector('[data-modal-pid]');
   if(existing && existing.dataset.modalPid===String(p.patient_id||openModalPid)){
@@ -1394,7 +1452,7 @@ function renderLivePatientModal(p,sid){
       const sorted=Object.entries(att).sort((a,b)=>b[1]-a[1]).slice(0,4);const maxW=sorted[0]?sorted[0][1]:1;
       sorted.forEach(([k,v])=>{const bar=existing.querySelector('[data-att="'+k+'"]');const num=existing.querySelector('[data-att-num="'+k+'"]');
         const pct=(v/maxW)*100;
-        const col=attnColor(pct);  // relative to session top feature
+        const col=attnColor(pct);
         if(bar){bar.style.width=pct+'%';bar.style.background=col;}
         if(num){num.textContent=(v*100).toFixed(0)+'%';num.style.color=col;}});
     }
@@ -1461,11 +1519,11 @@ function renderLivePatientModal(p,sid){
       return`<div style="width:20px;height:20px;border-radius:4px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white" title="Day ${t.tick}: ${tst}">${t.tick}</div>`;}).join('')}</div>`;}
   h+='</div>';
   body.innerHTML=h;
-  // animate feature importance bars from 0 to target width
+  // animate bars
   requestAnimationFrame(()=>{body.querySelectorAll('[data-att-target]').forEach(bar=>{bar.style.width=bar.dataset.attTarget+'%';});});
   if(hist.length>2)setTimeout(()=>_drawPatientTrendChart(hist),50);
 }
-// dual-axis trend chart with HR/SpO2 color gradients and zone bands
+// trend chart
 function _drawPatientTrendChart(hist){
   const canvas=document.getElementById('patient-trend-chart');if(!canvas)return;
   const canvasCtx=canvas.getContext('2d');if(patientTrendChart)patientTrendChart.destroy();
@@ -1552,7 +1610,7 @@ function _drawPatientTrendChart(hist){
 }
 function renderModal(d){
   const cs=d.current_status||{};const pr=d.latest_prediction;const ctx=d.context_metrics||{};
-  const st=cs.worst_status||cs.status||'Unknown';const sch=st==='Critical'?'cc_':st==='Unhealthy'?'cw_':st==='Healthy'?'co_':'cn_';
+  var st=cs.worst_status||cs.status;if(!st||st==='Unknown')st='Healthy';const sch=st==='Critical'?'cc_':st==='Unhealthy'?'cw_':st==='Healthy'?'co_':'cn_';
   const hr=cs.avg_heart_rate??cs.heart_rate;const sbp=cs.avg_systolic??cs.systolic_bp;const dbp=cs.avg_diastolic??cs.diastolic_bp;const tmp=cs.avg_temp??cs.body_temp;const spo=cs.avg_spo2??cs.spo2;
   let h=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px"><span class="chip ${sch}" style="font-size:13px;padding:5px 14px">${st}</span>
     ${cs.confidence!=null?`<span class="chip ci_">Conf ${((cs.confidence||0)*100).toFixed(0)}%</span>`:''}
@@ -1591,7 +1649,7 @@ function renderModal(d){
   if(hist.length>2)setTimeout(()=>_drawPatientTrendChart(hist),50);
 }
 
-// auth flow — login, signup, admin demo mode
+// auth flow
 async function checkAuth(){
   try{const res=await ft('/api/auth_status');
     if(res.logged_in){currentRole=res.role;currentUserDisp=res.display_name||res.username||'Admin';
@@ -1603,7 +1661,7 @@ async function checkAuth(){
         if(Array.isArray(gRes))_gSelPopulate(gRes);
       }else{if(aCards)aCards.style.display='none';if(aPan)aPan.style.display='none';if(gPan)gPan.style.display='block';
         currentUserDisp=res.display_name||res.username;const setHdr=document.getElementById('g-setting-header');if(setHdr)setHdr.textContent=`Settings for ${currentUserDisp}`;
-        const dispBtn=document.getElementById('g-display-name');if(dispBtn)dispBtn.textContent=`Change Name (${currentUserDisp})`;}
+        const dispBtn=document.getElementById('g-display-name');if(dispBtn)dispBtn.textContent='Change Name';}
       loadOv();
     }else{document.getElementById('auth-view').style.display='flex';document.getElementById('wrap').style.display='none';}
   }catch(e){console.error(e);}
@@ -1651,7 +1709,7 @@ async function assignPatient(){
   catch(e){document.getElementById('assign-msg').style.color='var(--rose)';document.getElementById('assign-msg').textContent=e.message;}
 }
 
-// autocomplete dropdown positioning and keyboard nav
+// autocomplete dropdown
 function _acShow(inp,drop,html){
   drop.innerHTML=html;
   const r=inp.getBoundingClientRect();
@@ -1739,7 +1797,7 @@ async function editGuardianName(){
 }
 
 
-// retrain flow — starts training, polls for completion
+// retrain flow
 let _trainPollTimer=null;
 function openRetrainPrompt(){document.getElementById('rt-msg').textContent='';}
 function closeRetrainPrompt(){}
@@ -1786,7 +1844,7 @@ function _startTrainPoll(){
   }catch{}
 })();
 
-// bug report modal
+// bug report
 function openBugReport(){document.getElementById('bugreport-input').value='';document.getElementById('bugreport-ov').classList.add('open');}
 function closeBugReport(){document.getElementById('bugreport-ov').classList.remove('open');}
 function submitBugReport(){
@@ -1796,9 +1854,8 @@ function submitBugReport(){
   showToast('Bug report sent to Admin. Thank you!');
 }
 
-// boot: check auth, then start the main poll loop
+// boot + poll loop
 checkAuth();
-// single poll loop so requests don't pile up
 setInterval(()=>{
   loadOv();
   if(document.querySelector('.nav-link[data-page="live"].active'))loadLive();

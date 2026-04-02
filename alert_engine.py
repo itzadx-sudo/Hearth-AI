@@ -9,6 +9,7 @@ _alert_queue:      collections.deque = collections.deque(maxlen=_MAX_ALERTS)
 _predictive_queue: collections.deque = collections.deque(maxlen=_MAX_ALERTS)
 _patient_critical_streak: dict = {}
 
+# need 3 consecutive critical ticks before firing an alert
 _DEBOUNCE_THRESHOLD = 3
 
 _queue_lock:     asyncio.Lock | None = None
@@ -38,6 +39,7 @@ async def check_and_alert(patient_id, result):
             _patient_critical_streak.pop(patient_id, None)
         return
 
+    # count consecutive criticals, reset after firing
     fire = False
     async with _get_streak_lock():
         streak = _patient_critical_streak.get(patient_id, 0) + 1
@@ -106,6 +108,7 @@ async def predictive_alert_count() -> int:
         return len(_predictive_queue)
 
 
+# non-async versions for flask routes
 def get_alerts_sync(limit=None) -> list:
     alerts = list(reversed(_alert_queue))
     return alerts[:limit] if limit is not None else alerts
