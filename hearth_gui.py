@@ -6,8 +6,8 @@ import sys
 import threading
 import time as _time
 import webbrowser
+from paths import _path, _data_path, BASE_DIR
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
@@ -211,7 +211,7 @@ def api_guardians():
 
 
 def _load_landing_html():
-    p = os.path.join(BASE_DIR, 'hearth_landing.html')
+    p = _path('hearth_landing.html')
     try:
         with open(p, 'r', encoding='utf-8') as f:
             return f.read()
@@ -526,7 +526,7 @@ def api_alerts():
     # try live db
     if not alerts:
         try:
-            LIVE_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'hearth_live.db')
+            LIVE_DB_PATH = _data_path('hearth_live.db')
             with sqlite3.connect(LIVE_DB_PATH) as conn:
                 conn.row_factory = sqlite3.Row
                 # latest high risk per patient
@@ -697,7 +697,7 @@ def api_training_status():
 
 
 def _load_html():
-    p = os.path.join(BASE_DIR, 'hearth_dashboard.html')
+    p = _path('hearth_dashboard.html')
     try:
         with open(p, 'r', encoding='utf-8') as f:
             return f.read()

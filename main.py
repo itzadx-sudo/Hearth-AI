@@ -6,8 +6,8 @@ import socket
 import sqlite3
 import subprocess
 import threading
+from paths import _path, BASE_DIR
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
@@ -15,10 +15,6 @@ SYSTEM_NAME = "Hearth AI - Home Care Monitoring System"
 VERSION = "4.0.0"
 
 _SEV_TAGS = {'normal': '[OK]', 'warning': '[!]', 'danger': '[!!]'}
-
-
-def _path(filename):
-    return os.path.join(BASE_DIR, filename)
 
 
 def _banner(subtitle=None):
@@ -114,14 +110,60 @@ def main():
 
     from tabnet_engine import CHECKPOINT_PATH as _CKPT_PATH
 
-    # no model = fallback to NEWS2 scoring, still works fine
+    # no checkpoint found — offer inline training before proceeding
     if not os.path.exists(_CKPT_PATH):
-        print("[INFO] Model not trained — live mode will use NEWS2 rule-based triage.")
+        print("[INFO] No trained model found.")
+        print()
+        print("  [T] Train model now")
+        print("  [Q] Quit")
+        print()
         try:
-            if input("Continue with rule-based fallback? (Y/n): ").strip().lower() == 'n':
-                return
+            choice = input("Choice: ").strip().upper()
         except (EOFError, KeyboardInterrupt):
             return
+
+        if choice != 'T':
+            return
+
+        # collect training parameters
+        try:
+            p_raw = input("\nNumber of patients  (default 200): ").strip()
+            tr_patients = int(p_raw) if p_raw else 200
+            tr_patients = max(1, min(tr_patients, 10000))
+
+            d_raw = input("Number of days      (default 60):  ").strip()
+            tr_days = int(d_raw) if d_raw else 60
+            tr_days = max(1, min(tr_days, 730))
+
+            r_raw = input("Sensor reads/hour   (default 12):  ").strip()
+            tr_rph = int(r_raw) if r_raw else 12
+            tr_rph = max(1, min(tr_rph, 60))
+        except (ValueError, EOFError, KeyboardInterrupt):
+            print("[ERROR] Invalid input.")
+            return
+
+        print()
+        print(f"[1/2] Generating training data ({tr_patients} patients, {tr_days} days, {tr_rph} reads/hr)...")
+        try:
+            from data_generator import generate_to_db
+            generate_to_db(
+                num_patients=tr_patients,
+                num_days=tr_days,
+                readings_per_hour=tr_rph,
+            )
+        except Exception as e:
+            print(f"[ERROR] Data generation failed: {e}")
+            return
+
+        print("[2/2] Training TabNet model...")
+        try:
+            from tabnet_engine import get_engine
+            get_engine().train_from_db()
+        except Exception as e:
+            print(f"[ERROR] Training failed: {e}")
+            return
+
+        print("[OK] Model trained successfully.\n")
 
     try:
         n_raw = input("\nLive patients  [1-500]  (default 50): ").strip()
@@ -183,4 +225,17 @@ def main():
 
 
 if __name__ == "__main__":
+    import sys
+    import runpy
+    import multiprocessing
+
+    multiprocessing.freeze_support()
+
+    if getattr(sys, 'frozen', False) and len(sys.argv) > 1:
+        target_script = sys.argv[-1]
+        if target_script.endswith(('ai_server.py', 'iot_simulator.py')):
+            runpy.run_path(target_script, run_name="__main__")
+            sys.exit(0)
+    # -------------------------------------
+
     main()

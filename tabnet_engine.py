@@ -5,12 +5,15 @@ import math
 import os
 import threading
 from typing import Dict, List, Optional, Tuple
-
+import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
+import sys
+import os
+from paths import _data_path
 
 
 def get_device() -> torch.device:
@@ -30,8 +33,7 @@ _DEVICE_LABEL: dict = {
 }
 print(f"[ENGINE] Compute device: {_DEVICE_LABEL.get(DEVICE.type, DEVICE.type)}")
 
-BASE_DIR        = os.path.dirname(os.path.abspath(__file__))
-CHECKPOINT_PATH = os.path.join(BASE_DIR, "hearth_tabnet.pth")
+CHECKPOINT_PATH = _data_path("hearth_tabnet.pth")
 
 VITALS: List[str] = ["heart_rate", "systolic_bp", "diastolic_bp", "body_temp", "spo2"]
 N_VITALS          = len(VITALS)
@@ -1002,31 +1004,9 @@ class TabNetEngine:
         test_accuracy  = accuracy
         overfit_gap    = train_accuracy - test_accuracy
 
-        cm_path = os.path.join(BASE_DIR, "confusion_matrix.png")
-        fig, ax = plt.subplots(figsize=(7, 6))
-        im = ax.imshow(cm, interpolation="nearest", cmap=plt.cm.Blues)
-        plt.colorbar(im, ax=ax)
-        ax.set_xticks(range(NUM_CLASSES)); ax.set_xticklabels(class_names, fontsize=11)
-        ax.set_yticks(range(NUM_CLASSES)); ax.set_yticklabels(class_names, fontsize=11)
-        ax.set_xlabel("Predicted Label", fontsize=12)
-        ax.set_ylabel("True Label",      fontsize=12)
-        ax.set_title("Hearth Model — Confusion Matrix (Test Set)", fontsize=13, fontweight="bold")
-        thresh = cm.max() / 2.0
-        for i in range(NUM_CLASSES):
-            for j in range(NUM_CLASSES):
-                ax.text(j, i, f"{cm[i, j]:,}",
-                        ha="center", va="center",
-                        color="white" if cm[i, j] > thresh else "black",
-                        fontsize=12, fontweight="bold")
-        plt.tight_layout()
-        plt.savefig(cm_path, dpi=150)
-        plt.close(fig)
-
         print("\n" + "=" * 60)
         print("  HEARTH AI — Post-Training Evaluation Report")
         print("=" * 60)
-
-        print(f"\n  [Confusion Matrix]  Saved → {cm_path}")
 
         print("\n  [Accuracy]")
         print(f"    Training Accuracy:   {train_accuracy*100:.2f}%")

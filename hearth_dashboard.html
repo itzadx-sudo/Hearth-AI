@@ -577,6 +577,18 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
   </div>
 </div>
 
+<!-- RETRAIN SUCCESS MODAL -->
+<div class="mov" id="retrain-success-ov">
+  <div class="mod" style="max-width:380px;padding:40px;text-align:center">
+    <div style="width:52px;height:52px;border-radius:50%;background:var(--teal-pale);display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
+      <svg width="26" height="26" fill="none" stroke="var(--teal)" stroke-width="2.2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div style="font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:900;color:var(--ink);letter-spacing:-.03em;margin-bottom:8px">Model Retrained</div>
+    <div style="font-family:'Lora',serif;font-style:italic;font-size:.85rem;color:var(--ink-muted);margin-bottom:28px">The model has been retrained and is ready to use.</div>
+    <button class="nav-btn" style="min-width:120px" onclick="document.getElementById('retrain-success-ov').classList.remove('open')">Done</button>
+  </div>
+</div>
+
 <!-- TRAINING OVERLAY -->
 <div id="training-overlay" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(250,247,242,0.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);pointer-events:all">
   <div style="position:absolute;top:0;left:0;right:0;height:64px;display:flex;align-items:center;padding:0 2.8rem;pointer-events:all;z-index:10001">
@@ -1832,8 +1844,13 @@ function _startTrainPoll(){
       if(!d.training){
         clearInterval(_trainPollTimer);_trainPollTimer=null;
         _hideTrainingOverlay();
-        showToast(d.message&&d.message.toLowerCase().includes('fail')?'Training failed — check server logs.':'Model retrained successfully!');
-        loadOv();loadSys();
+        if(d.message&&d.message.toLowerCase().includes('fail')){
+          showToast('Training failed — check server logs.');
+        }else{
+          // show success modal instead of dumping system stats
+          loadOv();
+          document.getElementById('retrain-success-ov').classList.add('open');
+        }
       }
     }catch{}
   },4000);

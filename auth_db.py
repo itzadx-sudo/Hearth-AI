@@ -2,9 +2,9 @@ import sqlite3
 import os
 import hashlib
 import sys
+from paths import _data_path
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "user.db")
+DB_PATH = _data_path('user.db')
 
 # sets up user + guardian tables, runs on every startup
 def init_db():

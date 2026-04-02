@@ -7,13 +7,11 @@ import threading
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Optional
+import sys
+from paths import _data_path
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SENSOR_DB_PATH  = os.environ.get(
-    'HEARTH_SENSOR_DB',
-    os.path.join(BASE_DIR, 'hearth_sensor.db'),
-)
-RESULTS_DB_PATH = os.path.join(BASE_DIR, 'hearth_results.db')
+SENSOR_DB_PATH = os.environ.get('HEARTH_SENSOR_DB', _data_path('hearth_sensor.db'))
+RESULTS_DB_PATH = _data_path('hearth_results.db')
 
 _sensor_lock    = threading.Lock()
 _results_lock   = threading.Lock()
@@ -683,7 +681,7 @@ def get_alerts_from_db(limit=100, alert_type=None):
 
 
 # separate db for live sessions so we don't pollute batch data
-LIVE_DB_PATH = os.path.join(BASE_DIR, "hearth_live.db")
+LIVE_DB_PATH = _data_path("hearth_live.db")
 _live_lock = threading.Lock()
 _live_initted = False
 
