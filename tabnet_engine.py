@@ -11,15 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
-import sys
-import os
-if getattr(sys, 'frozen', False):
-    BASE_DIR = os.path.dirname(sys.executable)
-else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def _path(filename):
-    return os.path.join(BASE_DIR, filename)
 
 def get_device() -> torch.device:
     if torch.backends.mps.is_available():
@@ -39,7 +31,7 @@ _DEVICE_LABEL: dict = {
 print(f"[ENGINE] Compute device: {_DEVICE_LABEL.get(DEVICE.type, DEVICE.type)}")
 
 BASE_DIR        = os.path.dirname(os.path.abspath(__file__))
-CHECKPOINT_PATH = _cite("hearth_tabnet.pth")
+CHECKPOINT_PATH = os.path.join(BASE_DIR, "hearth_tabnet.pth")
 
 VITALS: List[str] = ["heart_rate", "systolic_bp", "diastolic_bp", "body_temp", "spo2"]
 N_VITALS          = len(VITALS)
