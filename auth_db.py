@@ -6,9 +6,15 @@ from paths import _data_path
 
 DB_PATH = _data_path('user.db')
 
+def _connect():
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    return conn
+
 # sets up user + guardian tables, runs on every startup
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect()
     cur = conn.cursor()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -41,7 +47,7 @@ def _hash_password(password: str) -> str:
 
 def create_user(username: str, password: str, role: str = 'guardian') -> bool:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
@@ -58,7 +64,7 @@ def create_user(username: str, password: str, role: str = 'guardian') -> bool:
 
 def verify_user(username: str, password: str) -> dict:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         cur.execute("SELECT * FROM users WHERE username = ?", (username,))
@@ -74,7 +80,7 @@ def verify_user(username: str, password: str) -> dict:
 
 def assign_patient(guardian_username: str, patient_id: int) -> bool:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         # Verify guardian exists and is a guardian
         cur.execute("SELECT role FROM users WHERE username = ?", (guardian_username,))
@@ -96,7 +102,7 @@ def assign_patient(guardian_username: str, patient_id: int) -> bool:
 
 def get_guardian_patients(guardian_username: str) -> list:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         cur.execute("SELECT patient_id FROM guardian_patients WHERE guardian_username = ?", (guardian_username,))
         rows = cur.fetchall()
@@ -108,7 +114,7 @@ def get_guardian_patients(guardian_username: str) -> list:
 
 def get_all_guardians() -> list:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         cur.execute("SELECT username FROM users WHERE role = 'guardian'")
         rows = cur.fetchall()
@@ -120,7 +126,7 @@ def get_all_guardians() -> list:
 
 def update_display_name(username: str, display_name: str) -> bool:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         cur.execute("UPDATE users SET display_name = ? WHERE username = ?", (display_name, username))
         conn.commit()
