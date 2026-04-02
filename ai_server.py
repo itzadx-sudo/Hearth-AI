@@ -68,17 +68,19 @@ def normalize_vitals_tanaka(reading: dict) -> dict:
     act = reading.get("activity")
     if isinstance(act, str):
         is_active = act.strip().lower() == "active"
+        intensity_scale = 1.0
     else:
         is_active = isinstance(act, (int, float)) and act >= 3
+        intensity_scale = 0.7 + (act - 3) * 0.20 if is_active else 0.0
     if not is_active:
         return reading
     normalized = reading.copy()
     hr  = reading.get("heart_rate")
     sbp = reading.get("systolic_bp")
     if hr  is not None and not (isinstance(hr,  float) and hr  != hr):
-        normalized["heart_rate"]  = max(25.0, hr  - EXERTION_BIAS_HR)
+        normalized["heart_rate"]  = max(25.0, hr  - EXERTION_BIAS_HR  * intensity_scale)
     if sbp is not None and not (isinstance(sbp, float) and sbp != sbp):
-        normalized["systolic_bp"] = max(50.0, sbp - EXERTION_BIAS_SBP)
+        normalized["systolic_bp"] = max(50.0, sbp - EXERTION_BIAS_SBP * intensity_scale)
     return normalized
 
 
@@ -318,6 +320,13 @@ class AsyncHearthServer:
             result = self.engine.predict_risk(str(pid), window)
             if result is None:
                 continue
+
+            risk_score = result.get("risk_score", 0.0)
+            conf = max(risk_score, 1.0 - risk_score)
+            if result.get("risk_label") == "HIGH RISK" and conf < LOW_CONFIDENCE_THRESHOLD:
+                result["risk_label"] = "LOW RISK"
+                print(f"    {Colors.YELLOW}[LOW-CONF]{Colors.RESET} Patient {pid}: "
+                      f"HIGH RISK→LOW RISK (conf={conf:.2f} < {LOW_CONFIDENCE_THRESHOLD})")
 
             live_db.store_prediction(
                 self._session_id, self._tick, tick_time, int(pid), result
