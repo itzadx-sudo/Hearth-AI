@@ -10,6 +10,7 @@ a = Analysis(
         ('ai_server.py', '.'),
         ('iot_simulator.py', '.'),
         ('hearth_tabnet.pth', '.'),
+        ('static', 'static'),
     ],
     hiddenimports=[
         'flask', 'torch', 'pandas', 'numpy', 'sklearn', 'sqlite3', 'pydantic',
