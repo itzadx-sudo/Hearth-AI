@@ -675,22 +675,20 @@ class TabNetEngine:
                 mapped["activity"]     = mapped.pop("dominant_activity", 0)
             mapped_rows.append(mapped)
 
-        normalized_rows = mapped_rows
-        raw_tensors = torch.stack([reading_to_tensor(r) for r in normalized_rows])
-        
-        # fresh buffer so prediction isn't contaminated by real-time imputation state
+        raw_tensors = torch.stack([reading_to_tensor(r) for r in mapped_rows])
+
         temp_ring_buffer = DeviceRingBuffer()
         imputed = temp_ring_buffer.batch_impute(patient_id, raw_tensors)
 
-        latest_tensor = imputed[-1].unsqueeze(0)
-
         self.model.eval()
         with torch.no_grad():
-            status_logits, risk_logits, attention = self.model(latest_tensor, return_attention=True)
-            risk_prob = torch.sigmoid(risk_logits.squeeze()).item()
+            status_logits, risk_logits, attention = self.model(imputed, return_attention=True)
+            risk_probs = torch.sigmoid(risk_logits.squeeze(-1))
+            risk_prob  = float(risk_probs.mean().item())
+            peak_day   = int(risk_probs.argmax().item())
 
         feature_names = VITALS + ["activity", "delta_hr", "delta_spo2"]
-        att = attention[0].cpu().numpy() if attention is not None else np.zeros(N_FEATURES)
+        att = attention[peak_day].cpu().numpy() if attention is not None else np.zeros(N_FEATURES)
         top_factors = [feature_names[i] for i in np.argsort(att)[-3:][::-1]]
 
         return {
