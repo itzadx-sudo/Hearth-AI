@@ -6,16 +6,16 @@ import os
 import sys
 from typing import Optional
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 from pydantic import BaseModel, Field, field_validator
 
-import data_logger
-import alert_engine
-from tabnet_engine import get_engine, CHECKPOINT_PATH
-from patient_predictor import engineer_features_from_window
+from data import logger as data_logger
+from server import alert_engine
+from model.engine import get_engine, CHECKPOINT_PATH
+from model.predictor import engineer_features_from_window
 
 
 class SensorReading(BaseModel):

@@ -457,7 +457,7 @@ def _generate_patient_chunk(args):
 def generate_to_db(num_patients: int, num_days: int, readings_per_hour: int = 15,
                    batch_size: int = 10_000, seed: int = 42):
     from multiprocessing import Pool
-    import data_logger as _dl
+    from data import logger as _dl
 
     readings_per_day = readings_per_hour * 24
     total = num_patients * num_days * readings_per_day
@@ -614,7 +614,7 @@ def _prompt_int(prompt: str, default: int, lo: int, hi: int) -> int:
 
 
 if __name__ == "__main__":
-    import data_logger as _dl
+    from data import logger as _dl
 
     print("=" * 58)
     print("  Hearth AI — Data Generator (Tanaka Formula + NaN Dropout)")

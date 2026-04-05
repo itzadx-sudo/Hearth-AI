@@ -8,12 +8,11 @@ import sys
 from datetime import datetime
 from typing import List, Optional
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
-HOST         = "127.0.0.1"
-PORT         = 65432
+from config import SERVER_HOST as HOST, SERVER_PORT as PORT
 LIVE_MODE    = os.environ.get("HEARTH_LIVE_MODE", "0") == "1"
 N_PATIENTS   = int(os.environ.get("LIVE_N_PATIENTS", "50"))
 TICK_SECONDS = float(os.environ.get("LIVE_TICK_SECONDS", "2.0"))
@@ -92,7 +91,7 @@ def _nan_to_none(v):
 class Patient:
 
     def __init__(self, patient_id: int):
-        from data_generator import (
+        from data.generator import (
             _VITALS, _PROFILE_WEIGHTS, _base_vitals,
             _healthy_reading, _unhealthy_reading, _critical_reading,
             inject_sensor_dropout,
@@ -168,7 +167,7 @@ async def broadcast_live(client: AsyncTCPClient, patients: List[Patient]):
 
 
 async def run_live_mode():
-    from data_generator import _PROFILE_WEIGHTS
+    from data.generator import _PROFILE_WEIGHTS
     _PROFILES, _ = zip(*_PROFILE_WEIGHTS)
 
     print("=" * 60)
@@ -208,7 +207,7 @@ async def run_live_mode():
 
 
 async def broadcast_replay(client: AsyncTCPClient, dates: List[str]):
-    from data_logger import get_last_reading_per_patient_for_date
+    from data.logger import get_last_reading_per_patient_for_date
 
     total_days = len(dates)
     for index, sim_date in enumerate(dates):
@@ -238,7 +237,7 @@ async def broadcast_replay(client: AsyncTCPClient, dates: List[str]):
 
 
 async def run_replay_mode():
-    from data_logger import get_dates_available
+    from data.logger import get_dates_available
 
     print("=" * 60)
     print("   Hearth AI — Async IoT Edge Simulator (Replay)")

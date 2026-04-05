@@ -9,6 +9,8 @@ from datetime import datetime
 from typing import Optional
 import sys
 from paths import _data_path
+from config import (HR_CHANGE_THRESHOLD, SPO2_CHANGE_THRESHOLD,
+                    TEMP_CHANGE_THRESHOLD, SYS_BP_CHANGE_THRESHOLD)
 
 SENSOR_DB_PATH = os.environ.get('HEARTH_SENSOR_DB', _data_path('hearth_sensor.db'))
 RESULTS_DB_PATH = _data_path('hearth_results.db')
@@ -67,13 +69,6 @@ def _db_conn(path, row_factory=None):
         yield conn
     finally:
         conn.close()
-
-# day-over-day change thresholds for "sudden change" detection
-HR_CHANGE_THRESHOLD = 20
-SPO2_CHANGE_THRESHOLD = 5
-TEMP_CHANGE_THRESHOLD = 1.0
-SYS_BP_CHANGE_THRESHOLD = 25
-
 
 def ensure_sensor_db(path: str):
     conn = sqlite3.connect(path)
@@ -640,6 +635,7 @@ def get_bulk_rolling_windows(patient_ids, days=7, before_date=None):
         if pid not in result:
             result[pid] = []
         result[pid].append(d)
+    return result
 
 def store_alert(patient_id, alert_type, severity=None, details=None):
     _ensure_tables()
@@ -743,7 +739,7 @@ def init_live_db():
 
 def store_tick_results(session_id: str, tick: int, tick_time: str,
                        patient_results: list):
-    """Bulk-insert tick results."""
+    # write all patient results for this tick in one transaction
     rows = [
         (
             session_id, tick, tick_time,
@@ -769,7 +765,7 @@ def store_tick_results(session_id: str, tick: int, tick_time: str,
 
 
 def get_patient_window(session_id: str, patient_id: int, limit: int = 7) -> list:
-    """Recent tick results for a patient."""
+    # fetch last N tick results for a patient
     conn = _live_conn()
     try:
         rows = conn.execute(
@@ -791,7 +787,7 @@ def get_patient_window(session_id: str, patient_id: int, limit: int = 7) -> list
 
 def store_prediction(session_id: str, tick: int, tick_time: str,
                      patient_id: int, result: dict):
-    """Store a prediction."""
+    # queue a 7-day risk prediction write
     conn = _live_conn()
     try:
         conn.execute(
@@ -812,7 +808,7 @@ def store_prediction(session_id: str, tick: int, tick_time: str,
 
 def get_high_risk_patients(session_id: str, at_tick: int,
                            threshold: float = 0.5) -> list:
-    """HIGH RISK patients at a tick."""
+    # patients flagged HIGH RISK at a given tick
     conn = _live_conn()
     try:
         rows = conn.execute(
@@ -827,7 +823,7 @@ def get_high_risk_patients(session_id: str, at_tick: int,
 
 
 def get_latest_predictions(session_id: str, limit: Optional[int] = None) -> list:
-    """Latest prediction per patient."""
+    # most recent risk prediction per patient
     conn = _live_conn()
     try:
         rows = conn.execute(
@@ -852,7 +848,7 @@ def get_latest_predictions(session_id: str, limit: Optional[int] = None) -> list
 
 
 def get_latest_patient_states(session_id: str) -> list:
-    """Latest row per patient."""
+    # most recent tick result per patient
     conn = _live_conn()
     try:
         rows = conn.execute(
@@ -876,7 +872,7 @@ def get_latest_patient_states(session_id: str) -> list:
 
 
 def get_latest_tick_stats(session_id: str) -> dict:
-    """Stats for the latest tick."""
+    # summary counts for the most recent tick
     conn = _live_conn()
     try:
         latest_tick = conn.execute(
@@ -918,7 +914,7 @@ def get_latest_tick_stats(session_id: str) -> dict:
 
 
 def get_tick_series(session_id: str, n: int = 40) -> list:
-    """Status counts per tick."""
+    # status breakdown across all ticks
     conn = _live_conn()
     try:
         rows = conn.execute(
@@ -947,7 +943,7 @@ def get_tick_series(session_id: str, n: int = 40) -> list:
 
 
 def get_latest_session() -> Optional[str]:
-    """Latest session ID."""
+    # most recent session ID from live DB
     conn = _live_conn()
     try:
         row = conn.execute(
@@ -959,7 +955,7 @@ def get_latest_session() -> Optional[str]:
 
 
 def get_session_summary(session_id: str) -> dict:
-    """Session stats."""
+    # aggregate stats for the current session
     conn = _live_conn()
     try:
         total_ticks = conn.execute(

@@ -18,15 +18,15 @@ except ImportError:
     print("[ERROR] Flask not installed.  Run:  pip install flask")
     sys.exit(1)
 
-import alert_engine
-import api
-import data_logger as live_db
-from tabnet_engine import get_engine as _get_engine
+from server import alert_engine
+from server import api
+from data import logger as live_db
+from model.engine import get_engine as _get_engine
 
-import auth_db
+from auth import db as auth_db
 import secrets
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=os.path.join(BASE_DIR, "static"))
 app.json.sort_keys = False
 app.secret_key = os.environ.get('HEARTH_SESSION_KEY', secrets.token_hex(16))
 auth_db.init_db()
@@ -631,8 +631,8 @@ def api_system():
 
 def _retrain_worker(num_patients, num_days, readings_per_hour):
     global _training_in_progress, _training_message
-    import data_logger as _dl
-    from data_generator import generate_to_db
+    from data import logger as _dl
+    from data.generator import generate_to_db
 
     try:
         _training_message = "Generating training data…"

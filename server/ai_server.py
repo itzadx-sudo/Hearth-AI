@@ -17,28 +17,21 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
-from tabnet_engine import (get_engine, TabNetEngine, LABEL_TO_IDX, IDX_TO_LABEL,
-                           DEVICE, _DEVICE_LABEL, VITALS, N_FEATURES)
+from model.engine import (get_engine, TabNetEngine, LABEL_TO_IDX, IDX_TO_LABEL,
+                           DEVICE, _DEVICE_LABEL, VITALS, N_FEATURES,
+                           normalize_vitals_tanaka)
+from config import (SERVER_HOST as HOST, SERVER_PORT as PORT, MAX_MSG_BYTES,
+                    PREDICT_EVERY_N, EXERTION_BIAS_HR, EXERTION_BIAS_SBP,
+                    CRITICAL_CONF_THRESHOLD, LOW_CONFIDENCE_THRESHOLD)
 
-LIVE_MODE       = os.environ.get("HEARTH_LIVE_MODE") == "1"
-# predict every N ticks
-PREDICT_EVERY_N = 1
+LIVE_MODE = os.environ.get("HEARTH_LIVE_MODE") == "1"
 
 if LIVE_MODE:
-    import data_logger as live_db  # live DB functions now in data_logger
-
-HOST = "127.0.0.1"
-PORT = 65432
-
-# how much HR/BP we subtract when the patient is active
-EXERTION_BIAS_HR  = 15.0
-EXERTION_BIAS_SBP = 15.0
-CRITICAL_CONF_THRESHOLD  = 0.75  # only show critical alerts above this
-LOW_CONFIDENCE_THRESHOLD = 0.55  # below this, downgrade Critical -> Unhealthy
+    from data import logger as live_db
 
 
 class Colors:
@@ -62,26 +55,6 @@ class Colors:
         if importance > 0.25: return cls.RED
         if importance > 0.15: return cls.YELLOW
         return cls.CYAN
-
-
-def normalize_vitals_tanaka(reading: dict) -> dict:
-    act = reading.get("activity")
-    if isinstance(act, str):
-        is_active = act.strip().lower() == "active"
-        intensity_scale = 1.0
-    else:
-        is_active = isinstance(act, (int, float)) and act >= 3
-        intensity_scale = 0.7 + (act - 3) * 0.20 if is_active else 0.0
-    if not is_active:
-        return reading
-    normalized = reading.copy()
-    hr  = reading.get("heart_rate")
-    sbp = reading.get("systolic_bp")
-    if hr  is not None and not (isinstance(hr,  float) and hr  != hr):
-        normalized["heart_rate"]  = max(25.0, hr  - EXERTION_BIAS_HR  * intensity_scale)
-    if sbp is not None and not (isinstance(sbp, float) and sbp != sbp):
-        normalized["systolic_bp"] = max(50.0, sbp - EXERTION_BIAS_SBP * intensity_scale)
-    return normalized
 
 
 class AsyncHearthServer:
@@ -123,6 +96,9 @@ class AsyncHearthServer:
             while True:
                 header  = await reader.readexactly(4)
                 msg_len = struct.unpack(">I", header)[0]
+                if msg_len > MAX_MSG_BYTES:
+                    print(f"{Colors.RED}[ERROR]{Colors.RESET} Frame too large ({msg_len:,} bytes) — dropping connection")
+                    break
                 raw     = await reader.readexactly(msg_len)
                 await self._process_payload(raw)
         except asyncio.IncompleteReadError:
@@ -179,7 +155,7 @@ class AsyncHearthServer:
             attention   = att.cpu().numpy() if att is not None else \
                           np.full((n, N_FEATURES), 1.0 / N_FEATURES, dtype=np.float32)
         else:
-            from tabnet_engine import derive_severity
+            from model.engine import derive_severity
             indices     = np.zeros(n, dtype=np.int64)
             confidences = np.full(n, 0.80, dtype=np.float32)
             attention   = np.full((n, N_FEATURES), 1.0 / N_FEATURES, dtype=np.float32)

@@ -10,13 +10,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from tabnet_engine import get_engine, TabNetEngine
-
-WINDOW_DAYS    = 7
-LOOKAHEAD_DAYS = 2
-
-# below this we flag as low confidence, don't trust the prediction blindly
-RISK_CONFIDENCE_THRESHOLD = 0.55
+from model.engine import get_engine, TabNetEngine
+from config import WINDOW_DAYS, LOOKAHEAD_DAYS, RISK_CONFIDENCE_THRESHOLD
 
 
 # linear trend over the window, positive = going up
@@ -166,7 +161,7 @@ class PredictionEngine:
         return result
 
     def run_prediction(self, patient_id) -> Optional[dict]:
-        import data_logger
+        from data import logger as data_logger
         window = data_logger.get_rolling_window(patient_id, WINDOW_DAYS)
         if not window:
             return {"error": f"No history found for patient {patient_id}."}

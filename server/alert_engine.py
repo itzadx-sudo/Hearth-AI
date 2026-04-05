@@ -2,49 +2,30 @@ import asyncio
 import collections
 from datetime import datetime
 
-import data_logger
+from data import logger as data_logger
+from config import MAX_ALERTS, DEBOUNCE_THRESHOLD
 
-_MAX_ALERTS = 100
-_alert_queue:      collections.deque = collections.deque(maxlen=_MAX_ALERTS)
-_predictive_queue: collections.deque = collections.deque(maxlen=_MAX_ALERTS)
-_patient_critical_streak: dict = {}
+_alert_queue:             collections.deque = collections.deque(maxlen=MAX_ALERTS)
+_predictive_queue:        collections.deque = collections.deque(maxlen=MAX_ALERTS)
+_patient_critical_streak: dict              = {}
 
-# need 3 consecutive critical ticks before firing an alert
-_DEBOUNCE_THRESHOLD = 3
-
-_queue_lock:     asyncio.Lock | None = None
-_predictive_lock: asyncio.Lock | None = None
-_streak_lock:    asyncio.Lock | None = None
-
-
-def _get_queue_lock()     -> asyncio.Lock:
-    global _queue_lock
-    if _queue_lock is None:     _queue_lock = asyncio.Lock()
-    return _queue_lock
-
-def _get_predictive_lock() -> asyncio.Lock:
-    global _predictive_lock
-    if _predictive_lock is None: _predictive_lock = asyncio.Lock()
-    return _predictive_lock
-
-def _get_streak_lock()    -> asyncio.Lock:
-    global _streak_lock
-    if _streak_lock is None:    _streak_lock = asyncio.Lock()
-    return _streak_lock
+_queue_lock      = asyncio.Lock()
+_predictive_lock = asyncio.Lock()
+_streak_lock     = asyncio.Lock()
 
 
 async def check_and_alert(patient_id, result):
     if result.get("status") != "Critical":
-        async with _get_streak_lock():
+        async with _streak_lock:
             _patient_critical_streak.pop(patient_id, None)
         return
 
     # count consecutive criticals, reset after firing
     fire = False
-    async with _get_streak_lock():
+    async with _streak_lock:
         streak = _patient_critical_streak.get(patient_id, 0) + 1
         _patient_critical_streak[patient_id] = streak
-        if streak >= _DEBOUNCE_THRESHOLD:
+        if streak >= DEBOUNCE_THRESHOLD:
             fire = True
             _patient_critical_streak[patient_id] = 0
 
@@ -62,18 +43,18 @@ async def check_and_alert(patient_id, result):
     data_logger.store_alert(patient_id, alert_type="critical",
                             severity=result["status"], details=result.get("input_used", {}))
 
-    async with _get_queue_lock():
+    async with _queue_lock:
         _alert_queue.append(alert)
 
 
 async def get_alerts(limit=None) -> list:
-    async with _get_queue_lock():
+    async with _queue_lock:
         alerts = list(reversed(_alert_queue))
     return alerts[:limit] if limit is not None else alerts
 
 
 async def alert_count() -> int:
-    async with _get_queue_lock():
+    async with _queue_lock:
         return len(_alert_queue)
 
 
@@ -93,18 +74,18 @@ async def add_predictive_alert(patient_id, prediction_result):
                             details={"risk_score": prediction_result.get("risk_score"),
                                      "top_factors": prediction_result.get("top_factors")})
 
-    async with _get_predictive_lock():
+    async with _predictive_lock:
         _predictive_queue.append(alert)
 
 
 async def get_predictive_alerts(limit=None) -> list:
-    async with _get_predictive_lock():
+    async with _predictive_lock:
         alerts = list(reversed(_predictive_queue))
     return alerts[:limit] if limit is not None else alerts
 
 
 async def predictive_alert_count() -> int:
-    async with _get_predictive_lock():
+    async with _predictive_lock:
         return len(_predictive_queue)
 
 

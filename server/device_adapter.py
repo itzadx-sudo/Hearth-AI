@@ -2,11 +2,9 @@ import asyncio
 import json
 import struct
 from datetime import datetime
+from config import SERVER_HOST, SERVER_PORT, DEVICE_ADAPTER_PORT as LISTEN_PORT
 
-LISTEN_HOST = "127.0.0.1"
-LISTEN_PORT = 65431
-SERVER_HOST = "127.0.0.1"
-SERVER_PORT = 65432
+LISTEN_HOST = SERVER_HOST
 
 # maps vendor-specific field names to our standard schema
 VENDOR_KEY_MAP = {

@@ -101,14 +101,14 @@ def main():
     print()
 
     try:
-        from hearth_gui import run_gui_in_thread
+        from ui.gui import run_gui_in_thread
     except ImportError as e:
-        print(f"[ERROR] Could not import hearth_gui: {e}")
+        print(f"[ERROR] Could not import ui.gui: {e}")
         print("       Ensure Flask is installed: pip install flask")
         input("Press Enter to exit...")
         sys.exit(1)
 
-    from tabnet_engine import CHECKPOINT_PATH as _CKPT_PATH
+    from model.engine import CHECKPOINT_PATH as _CKPT_PATH
 
     # no checkpoint found — offer inline training before proceeding
     if not os.path.exists(_CKPT_PATH):
@@ -145,7 +145,7 @@ def main():
         print()
         print(f"[1/2] Generating training data ({tr_patients} patients, {tr_days} days, {tr_rph} reads/hr)...")
         try:
-            from data_generator import generate_to_db
+            from data.generator import generate_to_db
             generate_to_db(
                 num_patients=tr_patients,
                 num_days=tr_days,
@@ -157,7 +157,7 @@ def main():
 
         print("[2/2] Training TabNet model...")
         try:
-            from tabnet_engine import get_engine
+            from model.engine import get_engine
             get_engine().train_from_db()
         except Exception as e:
             print(f"[ERROR] Training failed: {e}")
@@ -186,7 +186,7 @@ def main():
         'HEARTH_LIVE_MODE':  '1',
     }
 
-    server = _launch("[1/3] Launching AI Server...", "ai_server.py",
+    server = _launch("[1/3] Launching AI Server...", os.path.join("server", "ai_server.py"),
                      fatal=True, extra_env=live_env)
     if server is None or not _wait_for_server('127.0.0.1', 65432):
         print("[ERROR] AI Server did not become ready within 60 s. Aborting.")
@@ -195,7 +195,7 @@ def main():
         return
 
     sim = _launch("[2/3] Starting Live Simulator...",
-                  "iot_simulator.py", extra_env=live_env)
+                  os.path.join("iot", "simulator.py"), extra_env=live_env)
 
     print("[3/3] Starting Web Dashboard...")
     _free_port(port)
@@ -233,7 +233,7 @@ if __name__ == "__main__":
 
     if getattr(sys, 'frozen', False) and len(sys.argv) > 1:
         target_script = sys.argv[-1]
-        if target_script.endswith(('ai_server.py', 'iot_simulator.py')):
+        if target_script.endswith(('ai_server.py', 'simulator.py')):
             runpy.run_path(target_script, run_name="__main__")
             sys.exit(0)
     # -------------------------------------
