@@ -300,7 +300,9 @@ class AsyncHearthServer:
             risk_score = result.get("risk_score", 0.0)
             conf = max(risk_score, 1.0 - risk_score)
             if result.get("risk_label") == "HIGH RISK" and conf < LOW_CONFIDENCE_THRESHOLD:
+                # downgrade both label AND score so they stay consistent
                 result["risk_label"] = "LOW RISK"
+                result["risk_score"] = round(min(risk_score, LOW_CONFIDENCE_THRESHOLD - 0.01), 4)
                 print(f"    {Colors.YELLOW}[LOW-CONF]{Colors.RESET} Patient {pid}: "
                       f"HIGH RISK→LOW RISK (conf={conf:.2f} < {LOW_CONFIDENCE_THRESHOLD})")
 

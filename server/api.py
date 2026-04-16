@@ -16,6 +16,13 @@ from data import logger as data_logger
 from server import alert_engine
 from model.engine import get_engine, CHECKPOINT_PATH
 from model.predictor import engineer_features_from_window
+from config import (
+    CTX_HIGH_HR_WARN, CTX_HIGH_HR_DANGER, CTX_LOW_SPO2_WARN, CTX_LOW_SPO2_DANGER,
+    CTX_FEVER_WARN, CTX_FEVER_DANGER, CTX_DANGER_WARN, CTX_DANGER_DANGER,
+    CTX_CRIT_ESC_WARN, CTX_CRIT_ESC_DANGER, CTX_ACT_DECLINE_WARN, CTX_ACT_DECLINE_DANGER,
+    CTX_HR_MISMATCH_WARN, CTX_HR_MISMATCH_DANGER, CTX_CRIT_RATIO_WARN, CTX_CRIT_RATIO_DANGER,
+    CTX_CONF_TREND_WARN, CTX_CONF_TREND_DANGER,
+)
 
 
 class SensorReading(BaseModel):
@@ -188,34 +195,34 @@ async def get_patient_context_metrics(patient_id) -> Optional[dict]:
         return "normal"
 
     result = {
-        "resting_high_hr_days":  {"value": (v := feats.get("resting_high_hr_days",  0)), "severity": _sev(v, 1, 3)},
-        "low_spo2_days":         {"value": (v := feats.get("low_spo2_days",         0)), "severity": _sev(v, 1, 3)},
-        "fever_days":            {"value": (v := feats.get("fever_days",            0)), "severity": _sev(v, 1, 3)},
-        "spo2_temp_danger_days": {"value": (v := feats.get("spo2_temp_danger_days", 0)), "severity": _sev(v, 1, 2)},
+        "resting_high_hr_days":  {"value": (v := feats.get("resting_high_hr_days",  0)), "severity": _sev(v, CTX_HIGH_HR_WARN,  CTX_HIGH_HR_DANGER)},
+        "low_spo2_days":         {"value": (v := feats.get("low_spo2_days",         0)), "severity": _sev(v, CTX_LOW_SPO2_WARN, CTX_LOW_SPO2_DANGER)},
+        "fever_days":            {"value": (v := feats.get("fever_days",            0)), "severity": _sev(v, CTX_FEVER_WARN,    CTX_FEVER_DANGER)},
+        "spo2_temp_danger_days": {"value": (v := feats.get("spo2_temp_danger_days", 0)), "severity": _sev(v, CTX_DANGER_WARN,   CTX_DANGER_DANGER)},
     }
 
     v = feats.get("critical_escalation", 0)
     result["critical_escalation"] = {"value": round(v, 4),
-                                     "severity": "danger" if v > 0.5 else "warning" if v > 0 else "normal"}
+                                     "severity": "danger" if v > CTX_CRIT_ESC_DANGER else "warning" if v > CTX_CRIT_ESC_WARN else "normal"}
 
     v = feats.get("activity_decline", 0)
     result["activity_decline"] = {"value": round(v, 4),
-                                  "severity": "normal" if v >= 0 else "warning" if v >= -0.05 else "danger"}
+                                  "severity": "normal" if v >= 0 else "warning" if v >= CTX_ACT_DECLINE_WARN else "danger"}
 
     v = feats.get("hr_activity_mismatch", 0)
     result["hr_activity_mismatch"] = {"value": round(v, 2),
-                                      "severity": "normal" if v < 80 else "warning" if v <= 100 else "danger"}
+                                      "severity": "normal" if v < CTX_HR_MISMATCH_WARN else "warning" if v <= CTX_HR_MISMATCH_DANGER else "danger"}
 
     result["max_systolic_slope"] = {"value": round(feats.get("max_systolic_slope", 0), 4)}
     result["spo2_min_slope"]     = {"value": round(feats.get("spo2_min_slope",     0), 4)}
 
     v = feats.get("critical_ratio", 0)
     result["critical_ratio"] = {"value": round(v, 4),
-                                "severity": "normal" if v < 0.05 else "warning" if v <= 0.15 else "danger"}
+                                "severity": "normal" if v < CTX_CRIT_RATIO_WARN else "warning" if v <= CTX_CRIT_RATIO_DANGER else "danger"}
 
     v = feats.get("confidence_trend", 0)
     result["confidence_trend"] = {"value": round(v, 4),
-                                  "severity": "normal" if v >= 0 else "warning" if v >= -0.03 else "danger"}
+                                  "severity": "normal" if v >= 0 else "warning" if v >= CTX_CONF_TREND_WARN else "danger"}
 
     for vital in ["heart_rate", "systolic_bp", "diastolic_bp", "body_temp", "spo2"]:
         result[f"{vital}_slope"] = {"value": round(feats.get(f"{vital}_slope", 0), 4)}

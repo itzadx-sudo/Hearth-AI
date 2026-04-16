@@ -69,7 +69,7 @@ def _refresh_pred_cache():
         bulk_windows = _safe(live_db.get_bulk_rolling_windows, pids, 7, default={})
         new_cache = {}
         for pid, window in bulk_windows.items():
-            if len(window) < 3:
+            if len(window) < 7:
                 continue
             try:
                 result = engine.predict_risk(str(pid), window)
@@ -83,9 +83,11 @@ def _refresh_pred_cache():
                         'sim_date':    (window[-1].get('sim_date', '') if window else ''),
                         'computed_at': _time.strftime('%Y-%m-%d %H:%M:%S'),
                     }
-            except Exception:
-                pass
+            except Exception as _cache_exc:
+                print(f'[WARN] pred cache: patient {pid} skipped — {_cache_exc}')
+        new_cache['_refreshed_at'] = _time.time()
         with _pred_lock:
+            # replace dict contents atomically — new_cache was built outside the lock
             _pred_cache.clear()
             _pred_cache.update(new_cache)
     except Exception as exc:
@@ -243,7 +245,13 @@ def api_overview():
         preds      = _safe(live_db.get_latest_predictions, sid, default=[])
         live_preds = _filter_patients(list(preds), allowed_pids)
         live_preds.sort(key=lambda x: x.get("risk_score", 0) or 0, reverse=True)
-        leaderboard = live_preds[:8]
+        leaderboard = live_preds[:10]
+        # before DB predictions exist (< 7 ticks), fall back to the in-memory cache
+        if not leaderboard:
+            with _pred_lock:
+                cache_snap_live = {k: v for k, v in _pred_cache.items() if isinstance(k, int)}
+            lb_cache = sorted(cache_snap_live.values(), key=lambda x: x.get('risk_score', 0) or 0, reverse=True)
+            leaderboard = _filter_patients(lb_cache, allowed_pids)[:10]
 
         # live critical alerts
         alerts = [
@@ -343,14 +351,15 @@ def api_overview():
         pass
     all_alerts = _filter_patients(all_alerts, allowed_pids)
     with _pred_lock:
-        cache_snap = dict(_pred_cache)
+        cache_snap = {k: v for k, v in _pred_cache.items() if isinstance(k, int)}
     for p in patients_data:
         pred = cache_snap.get(int(p.get('patient_id', 0)))
         if pred:
             p['risk_score'] = pred['risk_score']
             p['risk_label'] = pred.get('risk_label', p.get('risk_label', '—'))
-    lb_all = sorted(cache_snap.values(), key=lambda x: x.get('risk_score', 0) or 0, reverse=True)
-    lboard = _filter_patients(list(lb_all), allowed_pids)[:10]
+    lb_entries = list(cache_snap.values())
+    lb_all = sorted(lb_entries, key=lambda x: x.get('risk_score', 0) or 0, reverse=True)
+    lboard = _filter_patients(lb_all, allowed_pids)[:10]
     if not lboard:
         lboard = _safe(lambda: api._run_sync(api.get_risk_leaderboard(limit=100)), default=[])
         lboard = _filter_patients(lboard, allowed_pids)[:10]
@@ -389,7 +398,7 @@ def api_patients():
     data = _safe(api.get_dashboard_data_sync, default={})
     patients_data = _filter_patients(data.get("patients", []), allowed_pids)
     with _pred_lock:
-        cache_snap = dict(_pred_cache)
+        cache_snap = {k: v for k, v in _pred_cache.items() if isinstance(k, int)}
     for p in patients_data:
         pred = cache_snap.get(int(p.get('patient_id', 0)))
         if pred:

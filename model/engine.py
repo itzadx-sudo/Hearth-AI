@@ -13,7 +13,8 @@ import sys
 from paths import _data_path
 from config import (EXERTION_BIAS_HR, EXERTION_BIAS_SBP, RING_BUFFER_SIZE,
                     DEFAULT_EPOCHS, DEFAULT_BATCH_SIZE, DEFAULT_LR,
-                    DEFAULT_WEIGHT_DECAY)
+                    DEFAULT_WEIGHT_DECAY, RISK_LABEL_THRESHOLD,
+                    LOW_CONFIDENCE_THRESHOLD)
 from constants import (VITALS, N_VITALS, N_FEATURES, VITAL_BOUNDS,
                        LABEL_TO_IDX, IDX_TO_LABEL, NUM_CLASSES, CLINICAL_MEDIANS)
 from .layers import (FocalLoss, GhostBatchNorm, GLUBlock,
@@ -102,9 +103,12 @@ class DeviceRingBuffer:
             nan_mask = torch.isnan(base_reading)
             imputed_base = torch.where(nan_mask, medians, base_reading)
 
-            # delta features: how far this reading is from the patient's recent baseline
-            delta_hr   = (imputed_base[self.IDX_HR]   - medians[self.IDX_HR]) * 4.0
-            delta_spo2 = (imputed_base[self.IDX_SPO2] - medians[self.IDX_SPO2]) * 5.0
+            # delta features: deviation from patient's recent baseline, normalized to match training
+            # training uses raw BPM delta / 50.0 and raw SpO2 delta / 10.0
+            # VITAL_BOUNDS for HR: [20, 220] → range 200; for SpO2: [50, 100] → range 50
+            # normalized delta × range gives approximate raw delta → divide by training scale
+            delta_hr   = (imputed_base[self.IDX_HR]   - medians[self.IDX_HR])   * 200.0 / 50.0
+            delta_spo2 = (imputed_base[self.IDX_SPO2] - medians[self.IDX_SPO2]) * 50.0  / 10.0
             
             return torch.cat([imputed_base, torch.tensor([delta_hr, delta_spo2], device=DEVICE)])
 
@@ -177,9 +181,10 @@ def derive_severity(reading: dict) -> str:
     if score >= 2:
         return "Unhealthy"
 
+    # tachycardia + hypotension pattern: only escalate when NEWS2 already flags concern (score >= 1)
     eff_hr  = max(hr  - 15.0, 25.0) if is_active else hr
     eff_sbp = max(sbp - 15, 50.0) if is_active else sbp
-    if eff_hr > 90 and eff_sbp < 110:
+    if score >= 1 and eff_hr > 90 and eff_sbp < 110:
         return "Critical"
     return "Healthy"
 
@@ -245,7 +250,8 @@ def derive_severity_vectorized(df) -> "pd.Series":
 
     eff_hr_v  = np.where(is_active, (hr  - 15.0).clip(lower=25), hr)
     eff_sbp_v = np.where(is_active, (sbp - 15).clip(lower=50), sbp)
-    geri_critical = (base_label == "Healthy") & (eff_hr_v > 90) & (eff_sbp_v < 110)
+    # tachycardia + hypotension: only escalate when NEWS2 already flags concern (total >= 1)
+    geri_critical = (base_label == "Unhealthy") & (eff_hr_v > 90) & (eff_sbp_v < 110)
     result = base_label.copy()
     result[geri_critical] = "Critical"
     return result
@@ -337,11 +343,14 @@ class TabNetEngine:
             status = derive_severity(reading)
             idx    = LABEL_TO_IDX[status]
             probs  = [0.08, 0.08, 0.08]
-            probs[idx] = 0.76
+            # Use LOW_CONFIDENCE_THRESHOLD + small margin so rule-based predictions
+            # are treated the same as model predictions by the downgrade logic
+            probs[idx] = LOW_CONFIDENCE_THRESHOLD + 0.05
+            feature_names_full = VITALS + ["activity", "delta_hr", "delta_spo2"]
             return {
                 "status": status, "confidence": probs[idx],
                 "probabilities": {IDX_TO_LABEL[i]: round(probs[i], 4) for i in range(3)},
-                "attention": {v: 0.167 for v in VITALS + ["activity"]},
+                "attention": {v: round(1.0 / len(feature_names_full), 4) for v in feature_names_full},
                 "model": "rule-based-NEWS2",
             }
 
@@ -503,6 +512,8 @@ class TabNetEngine:
                 mapped["body_temp"]    = mapped.pop("avg_temp", None)
                 mapped["spo2"]         = mapped.pop("avg_spo2", None)
                 mapped["activity"]     = mapped.pop("dominant_activity", 0)
+            # apply the same exertion bias used by real-time classification
+            mapped = normalize_vitals_tanaka(mapped)
             mapped_rows.append(mapped)
 
         raw_tensors = torch.stack([reading_to_tensor(r) for r in mapped_rows])
@@ -516,14 +527,17 @@ class TabNetEngine:
             risk_probs = torch.sigmoid(risk_logits.squeeze(-1))
             risk_prob  = float(risk_probs.mean().item())
             peak_day   = int(risk_probs.argmax().item())
+            peak_score = float(risk_probs.max().item())
 
         feature_names = VITALS + ["activity", "delta_hr", "delta_spo2"]
         att = attention[peak_day].cpu().numpy() if attention is not None else np.zeros(N_FEATURES)
         top_factors = [feature_names[i] for i in np.argsort(att)[-3:][::-1]]
 
         return {
-            "risk_label":  "HIGH RISK" if risk_prob >= 0.5 else "LOW RISK",
+            "risk_label":  "HIGH RISK" if risk_prob >= RISK_LABEL_THRESHOLD else "LOW RISK",
             "risk_score":  round(risk_prob, 4),
+            "peak_score":  round(peak_score, 4),
+            "peak_day":    peak_day,
             "model":       "Hearth Model",
             "top_factors": top_factors,
         }
