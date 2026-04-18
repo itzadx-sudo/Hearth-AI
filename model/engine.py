@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 import sys
 from paths import _data_path
+from constants import news2_score
 from config import (EXERTION_BIAS_HR, EXERTION_BIAS_SBP, RING_BUFFER_SIZE,
                     DEFAULT_EPOCHS, DEFAULT_BATCH_SIZE, DEFAULT_LR,
                     DEFAULT_WEIGHT_DECAY, RISK_LABEL_THRESHOLD,
@@ -54,9 +55,9 @@ def normalize_vitals_tanaka(reading: dict) -> dict:
     normalized = reading.copy()
     hr  = reading.get("heart_rate")
     sbp = reading.get("systolic_bp")
-    if hr  is not None and not (isinstance(hr,  float) and hr  != hr):
+    if hr  is not None and not math.isnan(hr):
         normalized["heart_rate"]  = max(25.0, hr  - EXERTION_BIAS_HR  * intensity_scale)
-    if sbp is not None and not (isinstance(sbp, float) and sbp != sbp):
+    if sbp is not None and not math.isnan(sbp):
         normalized["systolic_bp"] = max(50.0, sbp - EXERTION_BIAS_SBP * intensity_scale)
     return normalized
 
@@ -121,39 +122,6 @@ class DeviceRingBuffer:
             self._buffers.pop(patient_id, None)
 
 
-def _news2_score(hr: float, sbp: float, temp: float, spo2: float,
-                 is_active: bool = False) -> Tuple[int, int]:
-    eff_hr  = max(hr  - 15.0, 25.0) if is_active else hr
-    eff_sbp = max(sbp - 15, 50.0) if is_active else sbp
-    score, max_single = 0, 0
-
-    if eff_hr <= 40 or eff_hr >= 131:                                    s = 3
-    elif 111 <= eff_hr <= 130:                                           s = 2
-    elif (41 <= eff_hr <= 50) or (91 <= eff_hr <= 110):                 s = 1
-    else:                                                                s = 0
-    score += s; max_single = max(max_single, s)
-
-    if spo2 <= 91:                                                       s = 3
-    elif 92 <= spo2 <= 93:                                               s = 2
-    elif 94 <= spo2 <= 95:                                               s = 1
-    else:                                                                s = 0
-    score += s; max_single = max(max_single, s)
-
-    if eff_sbp <= 90 or eff_sbp >= 220:                                  s = 3
-    elif 91 <= eff_sbp <= 100:                                           s = 2
-    elif 101 <= eff_sbp <= 110:                                          s = 1
-    else:                                                                s = 0
-    score += s; max_single = max(max_single, s)
-
-    if temp <= 35.0:                                                      s = 3
-    elif 35.1 <= temp <= 36.0:                                           s = 1
-    elif 38.1 <= temp <= 39.0:                                           s = 1
-    elif temp >= 39.1:                                                   s = 2
-    else:                                                                s = 0
-    score += s; max_single = max(max_single, s)
-
-    return score, max_single
-
 
 def derive_severity(reading: dict) -> str:
     def _f(key):
@@ -175,18 +143,21 @@ def derive_severity(reading: dict) -> str:
     else:
         is_active = isinstance(act, (int, float)) and act >= 3
 
-    score, max_single = _news2_score(hr, sbp, temp, spo2, is_active)
+    score, max_single = news2_score(hr, sbp, temp, spo2, is_active)
+    
     if score >= 5 or max_single >= 3:
-        return "Critical"
-    if score >= 2:
-        return "Unhealthy"
+        base_label = "Critical"
+    elif score >= 2:
+        base_label = "Unhealthy"
+    else:
+        base_label = "Healthy"
 
-    # tachycardia + hypotension pattern: only escalate when NEWS2 already flags concern (score >= 1)
+    # tachycardia + hypotension pattern: only escalate when base is Unhealthy
     eff_hr  = max(hr  - 15.0, 25.0) if is_active else hr
     eff_sbp = max(sbp - 15, 50.0) if is_active else sbp
-    if score >= 1 and eff_hr > 90 and eff_sbp < 110:
+    if base_label == "Unhealthy" and eff_hr > 90 and eff_sbp < 110:
         return "Critical"
-    return "Healthy"
+    return base_label
 
 
 def derive_severity_vectorized(df) -> "pd.Series":
@@ -488,9 +459,10 @@ class TabNetEngine:
         X_raw = torch.tensor(X_np, dtype=torch.float32, device=DEVICE)
 
         imputed_all = torch.zeros((n, N_FEATURES), dtype=torch.float32, device=DEVICE)
+        temp_ring_buffer = DeviceRingBuffer()
         for pid, idxs in patient_reading_indices.items():
             for global_i in idxs:
-                imputed_all[global_i] = self.ring_buffer.push_and_impute(
+                imputed_all[global_i] = temp_ring_buffer.push_and_impute(
                     pid, X_raw[global_i]
                 )
 
@@ -518,8 +490,7 @@ class TabNetEngine:
 
         raw_tensors = torch.stack([reading_to_tensor(r) for r in mapped_rows])
 
-        temp_ring_buffer = DeviceRingBuffer()
-        imputed = temp_ring_buffer.batch_impute(patient_id, raw_tensors)
+        imputed = self.ring_buffer.batch_impute(patient_id, raw_tensors)
 
         self.model.eval()
         with torch.no_grad():
@@ -586,9 +557,10 @@ class TabNetEngine:
                     y_risk_arr[orig_idx] = 1.0
 
         ROLLING_WINDOW = 10
-        df["delta_hr"]   = 0.0
-        df["delta_spo2"] = 0.0
         
+        delta_hr_arr = np.zeros(len(df), dtype=np.float32)
+        delta_spo2_arr = np.zeros(len(df), dtype=np.float32)
+
         for pid, grp in df.groupby("patient_id", sort=False):
             idxs = grp.index.tolist()
             hr_vals   = grp["heart_rate"].fillna(CLINICAL_MEDIANS["heart_rate"]).values
@@ -602,8 +574,11 @@ class TabNetEngine:
                 hr_median   = float(np.median(hr_window))
                 spo2_median = float(np.median(spo2_window))
                 
-                df.loc[orig_idx, "delta_hr"]   = hr_vals[i] - hr_median
-                df.loc[orig_idx, "delta_spo2"] = spo2_vals[i] - spo2_median
+                delta_hr_arr[orig_idx]   = hr_vals[i] - hr_median
+                delta_spo2_arr[orig_idx] = spo2_vals[i] - spo2_median
+
+        df["delta_hr"]   = delta_hr_arr
+        df["delta_spo2"] = delta_spo2_arr
 
         _BASE_COLS = VITALS
         _ROLLING_IMP_WINDOW = RING_BUFFER_SIZE
@@ -630,8 +605,9 @@ class TabNetEngine:
                   f"{_nan_filled_total:,} NaN cells filled")
 
         X_list, y_status_list, y_risk_list = [], [], []
-        for orig_idx, row in df.iterrows():
-            vec = reading_to_vec(row.to_dict())
+        records = df.to_dict("records")
+        for orig_idx, row in enumerate(records):
+            vec = reading_to_vec(row)
             if vec is not None:
                 delta_hr_norm   = row["delta_hr"] / 50.0
                 delta_spo2_norm = row["delta_spo2"] / 10.0
@@ -757,7 +733,7 @@ class TabNetEngine:
                 optimizer.zero_grad()
                 status_logits, risk_logits, _ = self.model(batch_x)
                 loss_status = criterion(status_logits, batch_y_status)
-                loss_risk   = F.binary_cross_entropy_with_logits(risk_logits.squeeze(), batch_y_risk)
+                loss_risk   = F.binary_cross_entropy_with_logits(risk_logits.squeeze(-1), batch_y_risk)
                 loss        = loss_status + loss_risk
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
@@ -790,6 +766,7 @@ class TabNetEngine:
 
             scheduler.step(critical_recall)
 
+        self._load()
         self.is_ready = True
 
         self.model.eval()

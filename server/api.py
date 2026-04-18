@@ -143,8 +143,12 @@ async def trigger_prediction(patient_id) -> dict:
     engine = get_engine()
     if not engine.is_ready:
         return {"error": "Prediction model not loaded."}
-    return await asyncio.to_thread(engine.predict_risk, str(patient_id),
-                                   data_logger.get_rolling_window(patient_id, 7) or [])
+    
+    def _predict():
+        window = data_logger.get_rolling_window(patient_id, 7) or []
+        return engine.predict_risk(str(patient_id), window)
+
+    return await asyncio.to_thread(_predict)
 
 
 async def get_alerts(limit: int = 50, alert_type: str = None) -> list:
@@ -257,14 +261,7 @@ async def lookup_patient(patient_id) -> dict:
 _sync_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
 def _run_sync(coro):
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # already in an event loop (e.g. jupyter), run in separate thread
-            return _sync_executor.submit(asyncio.run, coro).result()
-        return loop.run_until_complete(coro)
-    except RuntimeError:
-        return asyncio.run(coro)
+    return asyncio.run(coro)
 
 
 def get_dashboard_data_sync(sim_date=None):               return _run_sync(get_dashboard_data(sim_date))

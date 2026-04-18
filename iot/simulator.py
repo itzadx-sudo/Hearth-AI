@@ -117,10 +117,10 @@ class Patient:
         if self.crit_left > 0:
             raw = self._critical_reading(self.base)
             self.crit_left -= 1
-        elif random.random() < v["critical_prob"]:
+        elif self.noise_rng.random() < v["critical_prob"]:
             raw = self._critical_reading(self.base)
-            self.crit_left = random.randint(1, 3)
-        elif random.random() < v["unhealthy_prob"]:
+            self.crit_left = self.noise_rng.randint(1, 3)
+        elif self.noise_rng.random() < v["unhealthy_prob"]:
             raw = self._unhealthy_reading(self.profile, self.base)
         else:
             raw = self._healthy_reading(self.profile, self.base, hour)
@@ -143,7 +143,7 @@ async def broadcast_live(client: AsyncTCPClient, patients: List[Patient]):
     tick = 0
     while True:
         tick += 1
-        start = asyncio.get_event_loop().time()
+        start = asyncio.get_running_loop().time()
         sim_date = datetime.now().strftime("%Y-%m-%d")
 
         readings = [p.next_reading() for p in patients]
@@ -162,7 +162,7 @@ async def broadcast_live(client: AsyncTCPClient, patients: List[Patient]):
         print(f"[TICK {tick:>4}] {datetime.now().strftime('%H:%M:%S')} | "
               f"{len(readings)} patients | tick={TICK_SECONDS:.1f}s")
 
-        elapsed = asyncio.get_event_loop().time() - start
+        elapsed = asyncio.get_running_loop().time() - start
         await asyncio.sleep(max(0.0, TICK_SECONDS - elapsed))
 
 
@@ -211,7 +211,7 @@ async def broadcast_replay(client: AsyncTCPClient, dates: List[str]):
 
     total_days = len(dates)
     for index, sim_date in enumerate(dates):
-        start_time = asyncio.get_event_loop().time()
+        start_time = asyncio.get_running_loop().time()
 
         readings = get_last_reading_per_patient_for_date(sim_date)
         if not readings:
@@ -232,7 +232,7 @@ async def broadcast_replay(client: AsyncTCPClient, dates: List[str]):
         print(f"[DAY {index+1}/{total_days}] {sim_date} | "
               f"Sent {len(readings):,} patients (end-of-day snapshot)")
 
-        elapsed = asyncio.get_event_loop().time() - start_time
+        elapsed = asyncio.get_running_loop().time() - start_time
         await asyncio.sleep(max(0.0, SECONDS_PER_DAY - elapsed))
 
 

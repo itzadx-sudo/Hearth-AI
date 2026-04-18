@@ -10,6 +10,8 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+from constants import news2_score
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -112,58 +114,13 @@ _CRITICAL_EVENTS = [
 
 
 
-# national early warning score 2, returns (total, max_single_param)
-def _news2_score(hr: float, sbp: float, temp: float, spo2: float,
-                 is_active: bool = False) -> Tuple[int, int]:
-    # subtract exertion bias so active patients don't false-alarm
-    eff_hr  = max(25.0, hr  - EXERTION_BIAS["heart_rate"]) if is_active else hr
-    eff_sbp = max(50.0, sbp - EXERTION_BIAS["systolic_bp"]) if is_active else sbp
-
-    score, max_s = 0, 0
-
-    if eff_hr <= 40 or eff_hr >= 131:
-        s = 3
-    elif 111 <= eff_hr <= 130:
-        s = 2
-    elif (41 <= eff_hr <= 50) or (101 <= eff_hr <= 110):
-        s = 1
-    else:
-        s = 0
-    score += s
-    max_s = max(max_s, s)
-
-    if spo2 <= 87:
-        s = 3
-    elif 88 <= spo2 <= 89:
-        s = 2
-    elif 90 <= spo2 <= 91:
-        s = 1
-    else:
-        s = 0
-    score += s
-    max_s = max(max_s, s)
-
-    if eff_sbp <= 90 or eff_sbp >= 220:
-        s = 3
-    elif 91 <= eff_sbp <= 100:
-        s = 2
-    elif 101 <= eff_sbp <= 110:
-        s = 1
-    else:
-        s = 0
-    score += s
-    max_s = max(max_s, s)
-
-    s = 3 if temp <= 34.0 else 1 if 34.1 <= temp <= 35.0 or 38.1 <= temp <= 39.0 else 2 if temp >= 39.1 else 0
-    score += s
-    max_s = max(max_s, s)
-
-    return score, max_s
-
-
 def _sample_status(hr: float, sbp: float, spo2: float, temp: float,
                    is_active: bool = False) -> str:
-    score, max_single = _news2_score(hr, sbp, temp, spo2, is_active)
+    score, max_single = news2_score(
+        hr, sbp, temp, spo2, is_active=is_active,
+        exertion_bias_hr=EXERTION_BIAS["heart_rate"],
+        exertion_bias_sbp=EXERTION_BIAS["systolic_bp"]
+    )
     
     if score >= 5 or max_single >= 3:
         return "Critical"

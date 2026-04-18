@@ -33,3 +33,59 @@ CLINICAL_MEDIANS: Dict[str, float] = {
     "delta_hr":     0.0,
     "delta_spo2":   0.0,
 }
+
+def news2_score(hr: float, sbp: float, temp: float, spo2: float,
+                is_active: bool = False,
+                exertion_bias_hr: float = 15.0,
+                exertion_bias_sbp: float = 15.0) -> Tuple[int, int]:
+    eff_hr  = max(hr  - exertion_bias_hr, 25.0) if is_active else hr
+    eff_sbp = max(sbp - exertion_bias_sbp, 50.0) if is_active else sbp
+    score, max_single = 0, 0
+
+    if eff_hr <= 40 or eff_hr >= 131:
+        s = 3
+    elif 111 <= eff_hr <= 130:
+        s = 2
+    elif (41 <= eff_hr <= 50) or (91 <= eff_hr <= 110):
+        s = 1
+    else:
+        s = 0
+    score += s
+    max_single = max(max_single, s)
+
+    if spo2 <= 91:
+        s = 3
+    elif 92 <= spo2 <= 93:
+        s = 2
+    elif 94 <= spo2 <= 95:
+        s = 1
+    else:
+        s = 0
+    score += s
+    max_single = max(max_single, s)
+
+    if eff_sbp <= 90 or eff_sbp >= 220:
+        s = 3
+    elif 91 <= eff_sbp <= 100:
+        s = 2
+    elif 101 <= eff_sbp <= 110:
+        s = 1
+    else:
+        s = 0
+    score += s
+    max_single = max(max_single, s)
+
+    if temp <= 35.0:
+        s = 3
+    elif 35.1 <= temp <= 36.0:
+        s = 1
+    elif 38.1 <= temp <= 39.0:
+        s = 1
+    elif temp >= 39.1:
+        s = 2
+    else:
+        s = 0
+    score += s
+    max_single = max(max_single, s)
+
+    return score, max_single

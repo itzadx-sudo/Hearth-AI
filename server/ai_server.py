@@ -1,5 +1,6 @@
 import asyncio
 import json
+import math
 import os
 import struct
 import sys
@@ -306,7 +307,7 @@ class AsyncHearthServer:
                 print(f"    {Colors.YELLOW}[LOW-CONF]{Colors.RESET} Patient {pid}: "
                       f"HIGH RISK→LOW RISK (conf={conf:.2f} < {LOW_CONFIDENCE_THRESHOLD})")
 
-            live_db.store_prediction(
+            live_db.store_live_prediction(
                 self._session_id, self._tick, tick_time, int(pid), result
             )
             n_assessed += 1

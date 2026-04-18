@@ -96,8 +96,11 @@ def _refresh_pred_cache():
 def _pred_cache_worker():
     _time.sleep(4)
     while True:
+        start_t = _time.time()
         _refresh_pred_cache()
-        _time.sleep(8)
+        elapsed = _time.time() - start_t
+        sleep_time = max(0.0, 8.0 - elapsed)
+        _time.sleep(sleep_time)
 
 threading.Thread(target=_pred_cache_worker, daemon=True).start()
 

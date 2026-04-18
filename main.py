@@ -6,6 +6,8 @@ import socket
 import sqlite3
 import subprocess
 import threading
+import runpy
+import multiprocessing
 from paths import _path, BASE_DIR
 
 if BASE_DIR not in sys.path:
@@ -188,7 +190,8 @@ def main():
 
     server = _launch("[1/3] Launching AI Server...", os.path.join("server", "ai_server.py"),
                      fatal=True, extra_env=live_env)
-    if server is None or not _wait_for_server('127.0.0.1', 65432):
+    from config import SERVER_PORT
+    if server is None or not _wait_for_server('127.0.0.1', SERVER_PORT):
         print("[ERROR] AI Server did not become ready within 60 s. Aborting.")
         if server is not None:
             server.terminate()
@@ -225,10 +228,6 @@ def main():
 
 
 if __name__ == "__main__":
-    import sys
-    import runpy
-    import multiprocessing
-
     multiprocessing.freeze_support()
 
     if getattr(sys, 'frozen', False) and len(sys.argv) > 1:

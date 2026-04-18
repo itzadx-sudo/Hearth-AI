@@ -322,7 +322,10 @@ def store_daily_summary(patient_id, sim_date, aggregates, status, confidence):
                 VALUES (?, ?,  ?, ?, ?,  ?, ?, ?,  ?, ?,  ?, ?, ?, ?,  ?, ?,  ?, ?, ?, ?)
             """, params)
             conn.commit()
-    _write_queue.put(_write)
+    try:
+        _write_queue.put_nowait(_write)
+    except queue.Full:
+        print("[WARN] _write_queue is full, dropping DB write!")
 
 
 def get_rolling_window(patient_id, days=7, before_date=None):
@@ -447,7 +450,10 @@ def store_prediction(patient_id, sim_date, risk_label, risk_score, top_factors=N
                 VALUES (?, ?, ?, ?, ?, ?)
             """, params)
             conn.commit()
-    _write_queue.put(_write)
+    try:
+        _write_queue.put_nowait(_write)
+    except queue.Full:
+        print("[WARN] _write_queue is full, dropping DB write!")
 
 
 def get_predictions_for_patient(patient_id, limit=10):
@@ -650,7 +656,10 @@ def store_alert(patient_id, alert_type, severity=None, details=None):
                 VALUES (?, ?, ?, ?, ?)
             """, params)
             conn.commit()
-    _write_queue.put(_write)
+    try:
+        _write_queue.put_nowait(_write)
+    except queue.Full:
+        print("[WARN] _write_queue is full, dropping DB write!")
 
 
 def get_alerts_from_db(limit=100, alert_type=None):
@@ -681,11 +690,21 @@ LIVE_DB_PATH = _data_path("hearth_live.db")
 _live_lock = threading.Lock()
 _live_initted = False
 
+_live_local = threading.local()
+
+class _LocalConnection:
+    def __init__(self, db_path):
+        self._conn = sqlite3.connect(db_path)
+        self._conn.row_factory = sqlite3.Row
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+    def close(self):
+        pass
 
 def _live_conn():
-    conn = sqlite3.connect(LIVE_DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if not hasattr(_live_local, 'conn'):
+        _live_local.conn = _LocalConnection(LIVE_DB_PATH)
+    return _live_local.conn
 
 
 def init_live_db():
@@ -785,8 +804,8 @@ def get_patient_window(session_id: str, patient_id: int, limit: int = 7) -> list
     return result
 
 
-def store_prediction(session_id: str, tick: int, tick_time: str,
-                     patient_id: int, result: dict):
+def store_live_prediction(session_id: str, tick: int, tick_time: str,
+                          patient_id: int, result: dict):
     # queue a 7-day risk prediction write
     conn = _live_conn()
     try:
@@ -806,7 +825,7 @@ def store_prediction(session_id: str, tick: int, tick_time: str,
         conn.close()
 
 
-def get_high_risk_patients(session_id: str, at_tick: int,
+def get_live_high_risk_patients(session_id: str, at_tick: int,
                            threshold: float = 0.5) -> list:
     # patients flagged HIGH RISK at a given tick
     conn = _live_conn()

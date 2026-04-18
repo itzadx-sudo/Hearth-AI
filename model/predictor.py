@@ -132,6 +132,8 @@ def engineer_features_from_window(window):
 
     act_col  = next((c for c in ["activity_ratio", "dominant_activity"] if c in df.columns), None)
     mean_act = float(pd.to_numeric(df[act_col], errors="coerce").mean()) if act_col else 0.0
+    if act_col == "dominant_activity":
+        mean_act /= 5.0
     features["activity_adjusted_hr"] = mean_hr / max(mean_act, 0.1)
 
     return features

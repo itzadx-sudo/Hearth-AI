@@ -137,16 +137,15 @@ class TabNet(nn.Module):
             h    = self.step_transformers[step](current_input)
             d, a = h[:, :self.n_d], h[:, self.n_d:]
             output_agg = output_agg + F.relu(d)
-            if step < self.n_steps - 1:
-                mask          = self.attention_transformers[step](a, prior_scales)
-                prior_scales  = prior_scales * (self.gamma - mask)
-                current_input = mask * x_normalized
-                attention_agg = attention_agg + mask
+            mask          = self.attention_transformers[step](a, prior_scales)
+            prior_scales  = prior_scales * (self.gamma - mask)
+            current_input = mask * x_normalized
+            attention_agg = attention_agg + mask
 
         status_logits = self.status_head(output_agg)
         risk_logits   = self.risk_head(output_agg)
         if return_attention:
-            attention_agg = attention_agg / max(1, self.n_steps - 1)
+            attention_agg = attention_agg / max(1, self.n_steps)
             return status_logits, risk_logits, attention_agg
         return status_logits, risk_logits, None
 
