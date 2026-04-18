@@ -106,7 +106,7 @@ Input features: heart rate, systolic BP, diastolic BP, body temperature, SpO2, a
 
 ```python
 SERVER_PORT              = 65432
-CRITICAL_CONF_THRESHOLD  = 0.75   # confidence floor for a Critical alert
+CRITICAL_CONF_THRESHOLD  = 0.55   # confidence floor — Critical predictions below this get downgraded to Unhealthy
 DEBOUNCE_THRESHOLD       = 3      # consecutive critical ticks before alert fires
 WINDOW_DAYS              = 7      # lookback window for risk prediction
 ```
