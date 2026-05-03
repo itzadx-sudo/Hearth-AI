@@ -219,10 +219,10 @@ class AsyncHearthServer:
                 sbp = vitals.get("systolic_bp")
                 spo = vitals.get("spo2")
                 tmp = vitals.get("body_temp")
-                if hr  is not None and not (isinstance(hr,  float) and hr  != hr):  parts.append(f"HR:{hr:.0f}")
+                if hr  is not None and not math.isnan(hr):  parts.append(f"HR:{hr:.0f}")
                 if sbp is not None: parts.append(f"BP:{sbp:.0f}/{vitals.get('diastolic_bp', 0):.0f}")
-                if spo is not None and not (isinstance(spo, float) and spo != spo): parts.append(f"SpO2:{spo:.0f}")
-                if tmp is not None and not (isinstance(tmp, float) and tmp != tmp): parts.append(f"T:{tmp:.1f}°C")
+                if spo is not None and not math.isnan(spo): parts.append(f"SpO2:{spo:.0f}")
+                if tmp is not None and not math.isnan(tmp): parts.append(f"T:{tmp:.1f}°C")
                 print(f"    {Colors.RED}-{Colors.RESET} Patient {cp['pid']} "
                       f"(Conf: {cp['conf']:.2f}) | {' | '.join(parts) if parts else 'Vitals: N/A'}")
                 if att:

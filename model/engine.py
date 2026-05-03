@@ -153,8 +153,8 @@ def derive_severity(reading: dict) -> str:
         base_label = "Healthy"
 
     # tachycardia + hypotension pattern: only escalate when base is Unhealthy
-    eff_hr  = max(hr  - 15.0, 25.0) if is_active else hr
-    eff_sbp = max(sbp - 15, 50.0) if is_active else sbp
+    eff_hr  = max(hr  - EXERTION_BIAS_HR,  25.0) if is_active else hr
+    eff_sbp = max(sbp - EXERTION_BIAS_SBP, 50.0) if is_active else sbp
     if base_label == "Unhealthy" and eff_hr > 90 and eff_sbp < 110:
         return "Critical"
     return base_label
@@ -178,8 +178,8 @@ def derive_severity_vectorized(df) -> "pd.Series":
     act_str     = act_raw.astype(str).str.strip().str.lower()
     is_active = (act_numeric >= 3) | (act_str == "active")
 
-    eff_hr  = np.where(is_active, hr  - 15.0, hr ).clip(25, 220)
-    eff_sbp = np.where(is_active, sbp - 15, sbp).clip(50, 280)
+    eff_hr  = np.where(is_active, hr  - EXERTION_BIAS_HR,  hr ).clip(25, 220)
+    eff_sbp = np.where(is_active, sbp - EXERTION_BIAS_SBP, sbp).clip(50, 280)
 
     def _hr_score(h):
         s = np.zeros(len(df), dtype=int)
