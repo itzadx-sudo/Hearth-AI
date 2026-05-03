@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import concurrent.futures
 import os
 import sys
 from typing import Optional
@@ -256,10 +255,7 @@ async def lookup_patient(patient_id) -> dict:
     }
 
 
-# sync wrappers
-# flask is sync but our API layer is async, so we bridge with a thread pool
-_sync_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
-
+# sync wrappers — flask is sync but our API layer is async, bridge via asyncio.run()
 def _run_sync(coro):
     return asyncio.run(coro)
 

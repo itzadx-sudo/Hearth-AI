@@ -107,6 +107,11 @@ threading.Thread(target=_pred_cache_worker, daemon=True).start()
 
 
 
+def _patient_cache_snap() -> dict:
+    with _pred_lock:
+        return {k: v for k, v in _pred_cache.items() if isinstance(k, int)}
+
+
 def _safe(fn, *args, default=None, **kwargs):
     try:
         return fn(*args, **kwargs)
@@ -251,8 +256,7 @@ def api_overview():
         leaderboard = live_preds[:10]
         # before DB predictions exist (< 7 ticks), fall back to the in-memory cache
         if not leaderboard:
-            with _pred_lock:
-                cache_snap_live = {k: v for k, v in _pred_cache.items() if isinstance(k, int)}
+            cache_snap_live = _patient_cache_snap()
             lb_cache = sorted(cache_snap_live.values(), key=lambda x: x.get('risk_score', 0) or 0, reverse=True)
             leaderboard = _filter_patients(lb_cache, allowed_pids)[:10]
 
@@ -353,8 +357,7 @@ def api_overview():
     except Exception:
         pass
     all_alerts = _filter_patients(all_alerts, allowed_pids)
-    with _pred_lock:
-        cache_snap = {k: v for k, v in _pred_cache.items() if isinstance(k, int)}
+    cache_snap = _patient_cache_snap()
     for p in patients_data:
         pred = cache_snap.get(int(p.get('patient_id', 0)))
         if pred:
@@ -400,8 +403,7 @@ def api_patients():
 
     data = _safe(api.get_dashboard_data_sync, default={})
     patients_data = _filter_patients(data.get("patients", []), allowed_pids)
-    with _pred_lock:
-        cache_snap = {k: v for k, v in _pred_cache.items() if isinstance(k, int)}
+    cache_snap = _patient_cache_snap()
     for p in patients_data:
         pred = cache_snap.get(int(p.get('patient_id', 0)))
         if pred:
