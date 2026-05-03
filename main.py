@@ -14,7 +14,6 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 SYSTEM_NAME = "Hearth AI - Home Care Monitoring System"
-VERSION = "4.0.0"
 
 _SEV_TAGS = {'normal': '[OK]', 'warning': '[!]', 'danger': '[!!]'}
 
