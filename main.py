@@ -13,7 +13,7 @@ from paths import _path, BASE_DIR
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-SYSTEM_NAME = "Hearth AI - Home Care Monitoring System"
+SYSTEM_NAME = "Hearth AI"
 
 _SEV_TAGS = {'normal': '[OK]', 'warning': '[!]', 'danger': '[!!]'}
 
