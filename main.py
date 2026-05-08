@@ -22,7 +22,6 @@ def _banner(subtitle=None):
 
     os.system('cls' if os.name == 'nt' else 'clear')
     print(f"   {SYSTEM_NAME}")
-    print(f"   {subtitle or f'Version: {VERSION}'}")
 
 
 # pipe subprocess stdout to our terminal in real time
@@ -96,10 +95,7 @@ def _wait_for_server(host, port, timeout=60):
 
 
 def main():
-    _banner(f"Version {VERSION}")
     print("  Hearth AI — Web Dashboard Launcher")
-    print("  " + "=" * 44)
-    print()
 
     try:
         from ui.gui import run_gui_in_thread
