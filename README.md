@@ -208,5 +208,3 @@ The standalone generator uses files under `data/`, and dashboard retraining gene
 - Historical result writes in `data/logger.py` use a daemon-thread queue. Live tick and prediction writes are synchronous. Authentication and some dashboard queries access SQLite directly.
 - Simulator-to-server messages use a 4-byte big-endian length prefix followed by a JSON payload containing `sim_date` and `readings`. The AI server caps frames at 10 MB.
 - The optional device adapter accepts an unframed JSON list, translates vendor field names, and forwards framed messages to the AI server. The launcher does not start this adapter.
-
----
