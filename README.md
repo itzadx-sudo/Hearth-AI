@@ -210,9 +210,3 @@ The standalone generator uses files under `data/`, and dashboard retraining gene
 - The optional device adapter accepts an unframed JSON list, translates vendor field names, and forwards framed messages to the AI server. The launcher does not start this adapter.
 
 ---
-
-## Current limitations
-
-- **Launcher:** the undefined `VERSION` reference currently prevents `python main.py` from starting.
-- **Retraining:** the dashboard worker generates data in the repository root, then restores the configured sensor path before training. Training can therefore read a different dataset from the one just generated. It updates the model in the dashboard process; the separate AI server does not automatically reload the saved checkpoint.
-- **Packaging:** `HearthAI.spec` still references old flat filenames such as `ai_server.py` and `iot_simulator.py`, plus old module names. It needs updating before it can package the current directory structure.
