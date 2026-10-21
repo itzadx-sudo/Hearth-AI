@@ -78,7 +78,7 @@ The dashboard loads Chart.js from jsDelivr and fonts from Google Fonts, so those
 
 ## Running
 
-**Current launch blocker:** `main.py` references `VERSION` without defining or importing it. The command below currently raises `NameError` before any services start. The following describes the launch flow once that code issue is resolved.
+Start the launcher from the repository root:
 
 ```bash
 python main.py

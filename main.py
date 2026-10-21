@@ -22,7 +22,7 @@ def _banner(subtitle=None):
 
     os.system('cls' if os.name == 'nt' else 'clear')
     print(f"   {SYSTEM_NAME}")
-    print(f"   {subtitle or f'Version: {VERSION}'}")
+    print(f"   {subtitle or 'Web Dashboard Launcher'}")
 
 
 # pipe subprocess stdout to our terminal in real time
@@ -96,8 +96,7 @@ def _wait_for_server(host, port, timeout=60):
 
 
 def main():
-    _banner(f"Version {VERSION}")
-    print("  Hearth AI — Web Dashboard Launcher")
+    _banner()
     print("  " + "=" * 44)
     print()
 
