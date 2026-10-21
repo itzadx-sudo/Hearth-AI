@@ -70,13 +70,13 @@ See [Architecture](docs/architecture.md) for the source map, process layout, and
 ## Known limitations
 
 - Training and live demo data are synthetic.
-- Risk scores summarize recent readings; a seven-day forecast horizon is not established. See [Model](docs/model.md).
+- Live risk estimates use seven ticks of history. The model does not implement a fixed seven-day forecast. See [Model](docs/model.md).
 - Guardian patient restrictions are not enforced consistently across all API routes.
 - Password reset displays a message only; no reset email is sent.
 - Live alerts do not use the separate debounced alert helper.
 - Dashboard retraining temporarily blocks most API routes, uses a different data path from the default trainer, and does not automatically reload the separate AI server's model. See [Training](docs/training.md#dashboard-retraining).
 - Some thresholds and windows remain hardcoded. See [Configuration](docs/configuration.md#configuration-limits).
-- Packaged builds need verification on each target platform. See [Architecture](docs/architecture.md#packaging).
+- Packaging is platform-specific. See [Architecture](docs/architecture.md#packaging).
 
 ## Further documentation
 

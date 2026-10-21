@@ -48,7 +48,7 @@ Training requires at least 1,000 readings. See [Configuration and runtime data](
 
 Admins can generate synthetic training data and start training from the dashboard. `/api/training_status` exposes progress. Most API routes return HTTP 503 during training; authentication, training status/control, landing pages, and static assets remain available.
 
-Current limitations:
+Limitations:
 
-- The retraining worker generates `hearth_sensor.db` in the repository root, then restores the sensor database path before calling the trainer. The trainer can therefore read a different database from the newly generated one.
+- Retraining generates `hearth_sensor.db` in the repository root, then trains from the configured sensor database. With default paths, these are different files.
 - Retraining does not automatically reload the model already held by the separate AI server process. Restart the launcher after successful training to load the saved checkpoint there.

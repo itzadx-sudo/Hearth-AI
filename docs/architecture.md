@@ -59,7 +59,7 @@ This does not start the AI server or simulator. The Flask app binds to `0.0.0.0`
 
 ## Packaging
 
-`HearthAI.spec` uses the current package imports and bundles the HTML pages, static assets, model checkpoint, and the `server/ai_server.py` and `iot/simulator.py` scripts used by the frozen launcher. Paths are resolved relative to the specification file.
+`HearthAI.spec` bundles the application modules, HTML pages, static assets, model checkpoint, and the `server/ai_server.py` and `iot/simulator.py` scripts used by the frozen launcher. Paths are relative to the specification file.
 
 Install PyInstaller separately from the application dependencies, then build from the repository root:
 
@@ -68,6 +68,6 @@ python -m pip install pyinstaller
 python -m PyInstaller --clean --noconfirm HearthAI.spec
 ```
 
-The specification creates a console executable at `dist/HearthAI` (`dist/HearthAI.exe` on Windows). Build and verify it on each target operating system; a successful build alone does not verify the packaged application's runtime behavior.
+The console executable is written to `dist/HearthAI` (`dist/HearthAI.exe` on Windows). Build on the target operating system.
 
 See [Configuration and runtime data](configuration.md) for database locations and [Model](model.md) for inference behavior.

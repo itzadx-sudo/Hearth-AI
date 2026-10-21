@@ -19,7 +19,7 @@ WINDOW_DAYS              = 7     # historical lookback requested by the predicto
 
 ## Configuration limits
 
-Some behavior remains hardcoded: live risk windows are seven ticks, parts of the dashboard use `0.5` for risk highlighting, and the launcher prompts for its own dashboard port. Changing `WINDOW_DAYS`, `DASHBOARD_PORT`, or `RISK_LABEL_THRESHOLD` does not update every code path. `LOOKAHEAD_DAYS` is defined but is not used to construct the training labels.
+`WINDOW_DAYS` controls the predictor wrapper; the live risk window is fixed at seven ticks. Several dashboard risk highlights use a fixed threshold of `0.5`. The launcher prompts for its dashboard port instead of using `DASHBOARD_PORT`. `LOOKAHEAD_DAYS` is unused in training-label generation.
 
 ## Environment variables
 
@@ -47,4 +47,4 @@ Runtime files include `hearth_tabnet.pth`, `hearth_sensor.db`, `hearth_results.d
 
 The standalone generator uses files under `data/`, and dashboard retraining generates `hearth_sensor.db` in the repository root. These paths differ from the default persistent sensor database.
 
-See [Training](training.md#dashboard-retraining) for the effect of these path differences on dashboard retraining.
+See [Training](training.md#dashboard-retraining) for dashboard retraining paths.
