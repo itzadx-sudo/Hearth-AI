@@ -1,21 +1,26 @@
 # -*- mode: python ; coding: utf-8 -*-
+from pathlib import Path
+
+ROOT = Path(SPECPATH)
 
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    [str(ROOT / 'main.py')],
+    pathex=[str(ROOT)],
     binaries=[],
     datas=[
-        ('hearth_landing.html', '.'),
-        ('hearth_dashboard.html', '.'),
-        ('ai_server.py', '.'),
-        ('iot_simulator.py', '.'),
-        ('hearth_tabnet.pth', '.'),
-        ('static', 'static'),
+        (str(ROOT / 'hearth_landing.html'), '.'),
+        (str(ROOT / 'hearth_dashboard.html'), '.'),
+        (str(ROOT / 'server' / 'ai_server.py'), 'server'),
+        (str(ROOT / 'iot' / 'simulator.py'), 'iot'),
+        (str(ROOT / 'hearth_tabnet.pth'), '.'),
+        (str(ROOT / 'static'), 'static'),
     ],
     hiddenimports=[
         'flask', 'torch', 'pandas', 'numpy', 'sklearn', 'sqlite3', 'pydantic',
-        'hearth_gui', 'tabnet_engine', 'data_generator', 'alert_engine',
-        'api', 'data_logger', 'auth_db', 'patient_predictor', 'device_adapter'
+        'ui.gui', 'model.engine', 'model.layers', 'model.predictor',
+        'data.generator', 'data.logger', 'auth.db',
+        'server.ai_server', 'server.alert_engine', 'server.api',
+        'server.device_adapter', 'iot.simulator',
     ],
     hookspath=[],
     hooksconfig={},

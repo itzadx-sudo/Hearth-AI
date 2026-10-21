@@ -319,7 +319,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
     <div class="card"><div class="card-head"><div><div class="card-title">Status Distribution</div><div class="card-sub">All patients</div></div></div><div class="card-body"><div style="height:190px"><canvas id="donut-chart"></canvas></div></div></div>
   </div>
   <div class="bottom-grid">
-    <div class="card"><div class="card-head"><div><div class="card-title">Risk Leaderboard</div><div class="card-sub">Top 7-day predicted risk</div></div></div><div class="card-body"><div class="lb-list" id="lb-list"><div class="empty"><div class="ld"></div></div></div></div></div>
+    <div class="card"><div class="card-head"><div><div class="card-title">Risk Leaderboard</div><div class="card-sub">Highest rolling risk scores</div></div></div><div class="card-body"><div class="lb-list" id="lb-list"><div class="empty"><div class="ld"></div></div></div></div></div>
     <div class="card"><div class="card-head"><div><div class="card-title">Live Alerts</div><div class="card-sub">Live critical &amp; predictive</div></div></div><div class="card-body"><div class="af" id="alerts-prev"><div class="empty"><div class="ld"></div></div></div></div></div>
   </div>
 </div>
@@ -340,12 +340,12 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 <div class="page" id="page-live">
   <div class="sec-title">Live Monitor</div>
   <div class="three-col">
-    <div class="card" style="text-align:center"><div class="card-body" style="padding-top:1.5rem"><div class="stat-big" style="color:var(--teal)" id="lv-ticks">—</div><div class="stat-label">Days Recorded</div></div></div>
+    <div class="card" style="text-align:center"><div class="card-body" style="padding-top:1.5rem"><div class="stat-big" style="color:var(--teal)" id="lv-ticks">—</div><div class="stat-label">Ticks Recorded</div></div></div>
     <div class="card" style="text-align:center"><div class="card-body" style="padding-top:1.5rem"><div class="stat-big" style="color:var(--teal)" id="lv-pts">—</div><div class="stat-label">Patients Tracked</div></div></div>
-    <div class="card" style="text-align:center"><div class="card-body" style="padding-top:1.5rem"><div class="stat-big" style="color:var(--rose)" id="lv-hr">—</div><div class="stat-label">HIGH RISK (7-day)</div></div></div>
+    <div class="card" style="text-align:center"><div class="card-body" style="padding-top:1.5rem"><div class="stat-big" style="color:var(--rose)" id="lv-hr">—</div><div class="stat-label">HIGH RISK</div></div></div>
   </div>
-  <div class="card"><div class="card-head"><div><div class="card-title">Patient Status Over Time</div><div class="card-sub">Healthy / Unhealthy / Critical per day</div></div></div><div class="card-body"><div style="height:200px"><canvas id="ts-chart"></canvas></div></div></div>
-  <div class="card"><div class="card-head"><div><div class="card-title">7-Day Ahead Predictions</div><div class="card-sub" id="lv-sess">—</div></div><span class="live-badge" id="lv-badge" style="display:none">Active</span></div><div class="card-body"><div class="tbl-wrap"><table class="gt"><thead><tr><th>Patient</th><th>Risk Label</th><th>Risk Score</th><th>Top Factors</th><th>Computed At</th></tr></thead><tbody id="lv-tbody"><tr><td colspan="5" class="empty">No live session found. Waiting for data...</td></tr></tbody></table></div></div></div>
+  <div class="card"><div class="card-head"><div><div class="card-title">Patient Status Over Time</div><div class="card-sub">Healthy / Unhealthy / Critical per tick</div></div></div><div class="card-body"><div style="height:200px"><canvas id="ts-chart"></canvas></div></div></div>
+  <div class="card"><div class="card-head"><div><div class="card-title">Rolling Risk Estimates</div><div class="card-sub" id="lv-sess">—</div></div><span class="live-badge" id="lv-badge" style="display:none">Active</span></div><div class="card-body"><div class="tbl-wrap"><table class="gt"><thead><tr><th>Patient</th><th>Risk Label</th><th>Risk Score</th><th>Top Factors</th><th>Computed At</th></tr></thead><tbody id="lv-tbody"><tr><td colspan="5" class="empty">No live session found. Waiting for data...</td></tr></tbody></table></div></div></div>
 </div>
 
 <!-- ═══ ALERTS ═══ -->
@@ -619,7 +619,7 @@ let PTS=[], ALS=[], aFilt='all', sQ='', IS_LIVE=false; // IS_LIVE flips when ser
 let vCh=null, dCh=null, tsCh=null;
 let currentRole = null, currentUserDisp = null, isSignup = false, openModalPid = null;
 let _ov_pred_map = {};
-const PT={patients:['Patients','Patient Registry'],live:['Live Monitor','Real-Time 7-Day Predictions'],alerts:['Alerts','Critical & Predictive Alert Feed'],system:['System','Model & Database Health']};
+const PT={patients:['Patients','Patient Registry'],live:['Live Monitor','Live Rolling Risk Estimates'],alerts:['Alerts','Critical & Predictive Alert Feed'],system:['System','Model & Database Health']};
 
 // nav switching
 function go(p){
@@ -801,8 +801,8 @@ function drawStats(d){
   setRing('ring-ok',ok,total||1,okSev);
   if(IS_LIVE){
     const s=d.summary||{};const ts=d.tick_stats||{};
-    document.getElementById('s-days').textContent='Day '+(ts.tick||s.total_ticks||'—')+' · live session';
-    document.getElementById('chart-date').textContent='Day '+(ts.tick||'—')+' · '+new Date().toLocaleTimeString();
+    document.getElementById('s-days').textContent='Tick '+(ts.tick||s.total_ticks||'—')+' · live session';
+    document.getElementById('chart-date').textContent='Tick '+(ts.tick||'—')+' · '+new Date().toLocaleTimeString();
   } else {
     const h=d.system_health||{};
     document.getElementById('s-days').textContent=(h.days_processed||'—')+' days processed';
@@ -813,7 +813,7 @@ function drawStats(d){
 // leaderboard
 function drawLb(rows){
   const el=document.getElementById('lb-list');
-  if(!rows.length){el.innerHTML='<div class="empty">No predictions yet — will appear after day 7</div>';return;}
+  if(!rows.length){el.innerHTML='<div class="empty">No risk estimates yet — requires a loaded model and seven '+(IS_LIVE?'ticks':'daily summaries')+'.</div>';return;}
   // clear spinner
   const emptyEl=el.querySelector('.empty');if(emptyEl)emptyEl.remove();
   const top8=rows.slice(0,8);
@@ -1219,7 +1219,7 @@ function renderLive(d){
   const preds=d.predictions||[];const tb=document.getElementById('lv-tbody');
   if(!preds.length){
     const t=s.total_ticks||0;
-    tb.innerHTML=t<7?`<tr><td colspan="5" class="empty">Predictions start after day 7. Currently at day ${t}.</td></tr>`:'<tr><td colspan="5" class="empty">Predictions update every day — refresh shortly.</td></tr>';
+    tb.innerHTML=t<7?`<tr><td colspan="5" class="empty">Risk estimates need seven ticks of history. Currently at tick ${t}.</td></tr>`:'<tr><td colspan="5" class="empty">Waiting for model risk estimates.</td></tr>';
     return;
   }
   // reconcile rows by patient_id
@@ -1278,7 +1278,7 @@ function renderLive(d){
 }
 function drawTickSeries(series){
   const canvas=document.getElementById('ts-chart');if(!canvas)return;const ctx=canvas.getContext('2d');if(!series.length){if(tsCh)tsCh.destroy();tsCh=null;return;}
-  const labels=series.map(t=>'Day '+t.tick);
+  const labels=series.map(t=>'Tick '+t.tick);
   const hData=series.map(t=>t.Healthy||0),uData=series.map(t=>t.Unhealthy||0),cData=series.map(t=>t.Critical||0);
   if(tsCh){tsCh.data.labels=labels;tsCh.data.datasets[0].data=hData;tsCh.data.datasets[1].data=uData;tsCh.data.datasets[2].data=cData;tsCh.update({duration:0});return;}
   tsCh=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[
@@ -1384,7 +1384,7 @@ async function loadSys(){
     document.getElementById('sy-days').textContent=h.days_processed||'—';
     document.getElementById('sy-db').textContent=(h.db_size_mb||0)+' MB';
     document.getElementById('sy-engine').textContent=loaded?'Hearth Model':'NEWS2 only';
-    document.getElementById('sy-live').textContent=(h.live_ticks?h.live_ticks+' days':'—');
+    document.getElementById('sy-live').textContent=(h.live_ticks?h.live_ticks+' ticks':'—');
     const ptsChip=document.getElementById('sy-pts-chip');
     if(ptsChip){ptsChip.textContent=h.db_file||'hearth_results.db';ptsChip.className='chip ci_';}
     const daysChip=document.getElementById('sy-days-chip');
@@ -1474,7 +1474,7 @@ function renderLivePatientModal(p,sid){
     const riskChip=existing.querySelector('.modal-risk-chip');
     if(riskChip && pr){riskChip.className='chip modal-risk-chip '+((pr.risk_score||0)>=.5?'cc_':'co_');riskChip.style.cssText='font-size:13px;padding:5px 14px';riskChip.textContent=(pr.risk_label||'\u2014')+' \u00b7 '+((pr.risk_score||0)*100).toFixed(0)+'%';}
     const tickEl=existing.querySelector('.modal-tick');
-    if(tickEl){tickEl.textContent='Live Session: '+sid+' \u00b7 Day '+(p.tick||'\u2014');}
+    if(tickEl){tickEl.textContent='Live Session: '+sid+' \u00b7 Tick '+(p.tick||'\u2014');}
     const vmap={'heart_rate':['Heart Rate','bpm',0],'systolic_bp':['Systolic BP','mmHg',0],'diastolic_bp':['Diastolic BP','mmHg',0],'body_temp':['Temperature','\u00b0C',1],'spo2':['SpO\u2082','%',1]};
     Object.entries(vmap).forEach(([k,[label,unit,dec]])=>{
       const vel=existing.querySelector('[data-vital="'+k+'"]');
@@ -1501,13 +1501,13 @@ function renderLivePatientModal(p,sid){
     const timeline=existing.querySelector('.modal-timeline');
     if(timeline && hist.length>1){
       const tiles=hist.slice(-25).map(t=>{const tst=t.status||'Unknown';const bg=tst==='Critical'?'var(--rose)':tst==='Unhealthy'?'var(--amber)':'var(--teal)';
-        return`<div style="width:20px;height:20px;border-radius:4px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white" title="Day ${t.tick}: ${tst}">${t.tick}</div>`;}).join('');
+        return`<div style="width:20px;height:20px;border-radius:4px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white" title="Tick ${t.tick}: ${tst}">${t.tick}</div>`;}).join('');
       timeline.innerHTML=tiles;
     }
     if(hist.length>2 && patientTrendChart){
       _modalVitalsHist=hist;
       const sliced=_modalVitalsRange==='7t'?hist.slice(-7):_modalVitalsRange==='30t'?hist.slice(-30):hist;
-      patientTrendChart.data.labels=sliced.map(t=>'Day '+t.tick);
+      patientTrendChart.data.labels=sliced.map(t=>'Tick '+t.tick);
       patientTrendChart.data.datasets[0].data=sliced.map(t=>t.heart_rate);
       patientTrendChart.data.datasets[1].data=sliced.map(t=>t.spo2);
       patientTrendChart.update();
@@ -1515,7 +1515,7 @@ function renderLivePatientModal(p,sid){
     return;
   }
   let h=`<div data-modal-pid="${p.patient_id||openModalPid}">
-  <div class="modal-tick" style="margin-bottom:6px;font-family:'Lora',serif;font-style:italic;font-size:11px;color:var(--ink-muted)">Live Session: ${sid} \u00b7 Day ${p.tick||'\u2014'}</div>
+  <div class="modal-tick" style="margin-bottom:6px;font-family:'Lora',serif;font-style:italic;font-size:11px;color:var(--ink-muted)">Live Session: ${sid} \u00b7 Tick ${p.tick||'\u2014'}</div>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px"><span class="chip modal-status-chip ${sch}" style="font-size:13px;padding:5px 14px">${st}</span>
     ${p.confidence!=null?`<span class="chip ci_ modal-conf-chip">Conf ${((p.confidence||0)*100).toFixed(0)}%</span>`:''}
     ${pr?`<span class="chip modal-risk-chip ${(pr.risk_score||0)>=.5?'cc_':'co_'}" style="font-size:13px;padding:5px 14px">${pr.risk_label||'\u2014'} \u00b7 ${((pr.risk_score||0)*100).toFixed(0)}%</span>`:''}</div>
@@ -1528,7 +1528,7 @@ function renderLivePatientModal(p,sid){
         <div data-att-num="${k}" style="width:40px;text-align:right;font-size:11px;font-weight:700;color:${col}">${(v*100).toFixed(0)}%</div></div>`;}).join('')}</div>`;}
   if(pr){const sc=pr.risk_score||0;let fac=pr.top_factors||[];
     const rCol=riskColor(sc);
-    h+=`<div class="div"></div><div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:800;color:var(--ink);margin-bottom:12px">7-Day Risk Prediction</div>
+    h+=`<div class="div"></div><div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:800;color:var(--ink);margin-bottom:12px">Rolling Risk Estimate</div>
     <div style="background:linear-gradient(135deg,var(--cream),white);border-radius:16px;padding:18px;border:1px solid rgba(0,0,0,.06)">
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px"><div class="modal-risk-pct" style="font-family:'Playfair Display',serif;font-size:36px;font-weight:900;color:${rCol}">${(sc*100).toFixed(0)}%</div>
       <div><div class="modal-risk-label" style="font-size:14px;font-weight:700;color:${rCol}">${pr.risk_label||'\u2014'}</div><div style="font-family:'Lora',serif;font-style:italic;font-size:11px;color:var(--ink-muted)">Model: ${pr.model||'Hearth Model'}</div></div>
@@ -1541,14 +1541,14 @@ function renderLivePatientModal(p,sid){
       <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:800;color:var(--ink)">Vitals Trajectory</div>
       <div class="seg-ctrl" id="modal-range-ctrl">
         <button class="seg-btn active" onclick="setModalVitalsRange('all',this)">All</button>
-        <button class="seg-btn" onclick="setModalVitalsRange('7t',this)">7 Days</button>
-        <button class="seg-btn" onclick="setModalVitalsRange('30t',this)">30 Days</button>
+        <button class="seg-btn" onclick="setModalVitalsRange('7t',this)">7 Ticks</button>
+        <button class="seg-btn" onclick="setModalVitalsRange('30t',this)">30 Ticks</button>
       </div>
     </div>
     <div style="height:230px;background:var(--cream);border-radius:12px;padding:8px"><canvas id="patient-trend-chart"></canvas></div>`;}
   if(hist.length>1){h+=`<div class="div"></div><div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:800;color:var(--ink);margin-bottom:12px">Status Timeline</div>
     <div class="modal-timeline" style="display:flex;gap:3px;overflow-x:auto;padding:4px 0">${hist.slice(-25).map(t=>{const tst=t.status||'Unknown';const bg=tst==='Critical'?'var(--rose)':tst==='Unhealthy'?'var(--amber)':'var(--teal)';
-      return`<div style="width:20px;height:20px;border-radius:4px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white" title="Day ${t.tick}: ${tst}">${t.tick}</div>`;}).join('')}</div>`;}
+      return`<div style="width:20px;height:20px;border-radius:4px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white" title="Tick ${t.tick}: ${tst}">${t.tick}</div>`;}).join('')}</div>`;}
   h+='</div>';
   body.innerHTML=h;
   // animate bars
@@ -1611,7 +1611,7 @@ function _drawPatientTrendChart(hist){
 
   patientTrendChart=new Chart(canvasCtx,{type:'line',
     plugins:[zonePlugin,gradPlugin],
-    data:{labels:hist.map(t=>'Day '+t.tick),
+    data:{labels:hist.map(t=>t.tick!=null?'Tick '+t.tick:(t.sim_date||t.timestamp||'')),
       datasets:[
         {label:'Heart Rate',data:hist.map(t=>t.heart_rate),
           borderColor:'#22C55E',
@@ -1655,7 +1655,7 @@ function renderModal(d){
     ck.forEach(k=>{const v=ctx[k];const sv=v&&v.severity?'sv-'+v.severity[0]:'';h+=`<div class="cc2"><div class="lbl">${CL[k]}</div><div class="val ${sv}">${v&&v.value!=null?v.value:v}</div></div>`;});h+='</div>';}
   if(pr){const sc=pr.risk_score||0;const rCol=riskColor(sc);
     let fac=pr.top_factors||[];try{if(typeof fac==='string')fac=JSON.parse(fac);}catch{}
-    h+=`<div class="div"></div><div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:800;color:var(--ink);margin-bottom:12px">7-Day Risk Prediction</div>
+    h+=`<div class="div"></div><div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:800;color:var(--ink);margin-bottom:12px">Rolling Risk Estimate</div>
     <div style="background:linear-gradient(135deg,var(--cream),white);border-radius:16px;padding:18px;border:1px solid rgba(0,0,0,.06)">
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px"><div class="modal-risk-pct" style="font-family:'Playfair Display',serif;font-size:36px;font-weight:900;color:${rCol}">${(sc*100).toFixed(0)}%</div>
       <div><div class="modal-risk-label" style="font-size:14px;font-weight:700;color:${rCol}">${pr.risk_label||'\u2014'}</div><div style="font-family:'Lora',serif;font-style:italic;font-size:11px;color:var(--ink-muted)">Model: ${pr.model||'Hearth Model'} · ${pr.sim_date||'stored'}</div></div>

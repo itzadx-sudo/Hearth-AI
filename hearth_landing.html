@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Hearth AI: Intelligent Patient Monitoring</title>
-<meta name="description" content="Hearth AI monitors patient vitals in real time, predicts 7-day health trajectories, and surfaces the patients who need attention before a crisis develops.">
+<meta name="description" content="Hearth AI is a patient monitoring demo with synthetic vitals, live status classification, and rolling risk estimates.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -177,12 +177,12 @@ body.page-exit{opacity:0;transform:translateY(-18px);pointer-events:none;}
   <div class="hero-left">
     <div class="hero-eyebrow">Real-Time Patient Monitoring</div>
     <h1 class="hero-title">
-      See who needs<br>
-      attention <em>before</em><br>
-      it's too late.
+      Patient vitals.<br>
+      Rolling risk.<br>
+      <em>One dashboard.</em>
     </h1>
     <p class="hero-subtitle">
-      Hearth AI monitors every patient's vitals continuously, predicts 7-day health trajectories, and surfaces the right alerts, so care teams focus on the patients who matter most right now.
+      Hearth AI streams synthetic vitals, classifies patient status, and displays rolling risk estimates from recent readings in a live dashboard.
     </p>
     <div class="hero-actions">
       <a href="/" class="btn-primary" onclick="return goToDashboard(event)">Open Dashboard &nbsp;→</a>
@@ -195,17 +195,17 @@ body.page-exit{opacity:0;transform:translateY(-18px);pointer-events:none;}
 
     <div class="badge-float badge-float-1">
       <span style="width:8px;height:8px;border-radius:50%;background:var(--rose);display:inline-block;flex-shrink:0"></span>
-      <span>Critical alert suppressed, low confidence</span>
+      <span>Low-confidence Critical downgraded to Unhealthy</span>
     </div>
     <div class="badge-float badge-float-2">
       <span style="width:8px;height:8px;border-radius:50%;background:var(--teal);display:inline-block;flex-shrink:0"></span>
-      <span>Day 7 prediction ready</span>
+      <span>Risk estimates after 7 ticks</span>
     </div>
 
     <div class="dashboard-preview">
       <div class="dp-header">
         <div class="dp-title">Patient Registry</div>
-        <div class="dp-live"><div class="dp-dot"></div> Live</div>
+        <div class="dp-live"><div class="dp-dot"></div> Demo preview</div>
       </div>
 
       <div class="dp-row">
@@ -247,51 +247,51 @@ body.page-exit{opacity:0;transform:translateY(-18px);pointer-events:none;}
 
 <div class="trust-bar">
   <div class="trust-item"><div class="trust-dot"></div> Multivariate Neural Network</div>
-  <div class="trust-item"><div class="trust-dot"></div> 7-Day Risk Predictions</div>
-  <div class="trust-item"><div class="trust-dot"></div> Low-Confidence Fallback</div>
-  <div class="trust-item"><div class="trust-dot"></div> Real-Time IoT Integration</div>
+  <div class="trust-item"><div class="trust-dot"></div> Rolling Risk Estimates</div>
+  <div class="trust-item"><div class="trust-dot"></div> Confidence Thresholding</div>
+  <div class="trust-item"><div class="trust-dot"></div> TCP Sensor Simulation</div>
   <div class="trust-item"><div class="trust-dot"></div> Live Alert Feed</div>
 </div>
 
 <div class="section-intro" id="features">
   <div class="section-tag">What Hearth AI does</div>
-  <h2 class="section-title">A complete picture of every patient, <em>continuously</em></h2>
-  <p class="section-body">Every feature is built around a single goal: give care teams the right information at the right time, with the confidence to act on it.</p>
+  <h2 class="section-title">Patient readings and risk scores, <em>together</em></h2>
+  <p class="section-body">Explore simulated patient readings, model outputs, and alerts in one demo.</p>
 </div>
 
 <div class="features">
   <div class="feature-card teal">
     <div class="feature-number">1</div>
-    <h3 class="feature-title">7-Day Risk Prediction<span class="feature-sub">Temporal trajectory forecasting</span></h3>
-    <p class="feature-text">Hearth AI doesn't just flag today's vitals. It predicts each patient's health trajectory seven days out, using historical patterns to identify who is trending toward decline before it's too late.</p>
+    <h3 class="feature-title">Rolling Risk Estimates<span class="feature-sub">Recent reading windows</span></h3>
+    <p class="feature-text">Live risk estimates begin after seven ticks and use the latest seven readings. Historical estimates use daily summaries. These scores do not establish a seven-day forecast horizon.</p>
   </div>
 
   <div class="feature-card amber">
     <div class="feature-number">2</div>
     <h3 class="feature-title">Multivariate Vital Analysis<span class="feature-sub">Six simultaneous signals</span></h3>
-    <p class="feature-text">Heart rate, SpO₂, systolic and diastolic BP, body temperature, and activity level are analysed together, not in isolation. The model learns the relationships between them, catching patterns that single-metric thresholds miss.</p>
+    <p class="feature-text">Heart rate, SpO₂, systolic and diastolic BP, body temperature, and activity level are analysed together, not in isolation. The model uses these signals together with heart-rate and SpO₂ change features.</p>
   </div>
 
   <div class="feature-card rose">
     <div class="feature-number">3</div>
-    <h3 class="feature-title">False Alarm Reduction<span class="feature-sub">Confidence-gated alerts</span></h3>
-    <p class="feature-text">Critical predictions are verified against model confidence before firing. Low-confidence Critical alerts are automatically downgraded to Unhealthy, dramatically reducing alarm fatigue without silencing genuinely urgent events.</p>
+    <h3 class="feature-title">Confidence Thresholding<span class="feature-sub">Confidence-gated alerts</span></h3>
+    <p class="feature-text">Critical classifications below the configured confidence threshold are downgraded to Unhealthy before they are stored and displayed.</p>
   </div>
 
   <div class="feature-card gold">
     <div class="feature-number">4</div>
     <h3 class="feature-title">Live Fleet Overview<span class="feature-sub">All patients. One screen.</span></h3>
-    <p class="feature-text">The overview dashboard shows every patient's current status, risk percentile, and recent alert in a single leaderboard view, automatically kept current. Filter by status to zero in on critical cases.</p>
+    <p class="feature-text">The overview dashboard shows every patient's current status, risk score, and recent alert in a single leaderboard view, automatically kept current. Filter by status to zero in on critical cases.</p>
   </div>
 
   <div class="feature-card teal full-width">
     <div>
       <h3 class="feature-title" style="font-size:1.55rem">IoT-Native, Sensor-Resilient</h3>
-      <p class="feature-text" style="max-width:440px">Hearth AI ingests real-time data from bedside sensors over a persistent socket connection. Missing or failed sensors are handled gracefully. Readings with incomplete vitals are flagged, not silently dropped, and the model adjusts predictions accordingly.</p>
+      <p class="feature-text" style="max-width:440px">The simulator streams readings over a persistent TCP connection. Missing vital values are imputed from recent patient history, with fallback values when no history is available.</p>
     </div>
     <div class="feature-visual">
       <div style="width:100%">
-        <div style="font-size:.76rem;font-weight:600;color:var(--teal);letter-spacing:.06em;text-transform:uppercase;margin-bottom:.8rem">Risk trajectory · 7 days</div>
+        <div style="font-size:.76rem;font-weight:600;color:var(--teal);letter-spacing:.06em;text-transform:uppercase;margin-bottom:.8rem">Illustrative window · 7 ticks</div>
         <div class="mini-chart">
           <div class="mc-bar" style="height:28%;animation-delay:0s"></div>
           <div class="mc-bar" style="height:35%;animation-delay:.08s"></div>
@@ -302,10 +302,10 @@ body.page-exit{opacity:0;transform:translateY(-18px);pointer-events:none;}
           <div class="mc-bar" style="height:80%;animation-delay:.48s"></div>
         </div>
         <div style="display:flex;justify-content:space-between;margin-top:.55rem;font-size:.7rem;color:var(--ink-muted)">
-          <span>Day 1</span><span>Day 3</span><span>Day 5</span><span>Day 7</span>
+          <span>Tick 1</span><span>Tick 3</span><span>Tick 5</span><span>Tick 7</span>
         </div>
         <div style="margin-top:1.1rem;padding:.75rem 1rem;background:white;border-radius:10px;font-size:.8rem;font-family:'Lora',serif;color:var(--ink-soft);font-style:italic">
-          Trajectory rising. Critical threshold projected at Day 7.
+          Illustrative readings from a seven-tick lookback window.
         </div>
       </div>
     </div>
@@ -319,11 +319,11 @@ body.page-exit{opacity:0;transform:translateY(-18px);pointer-events:none;}
   </div>
   <div class="stat-item">
     <div class="stat-number">7</div>
-    <div class="stat-label-text">Days predicted ahead<br>per patient</div>
+    <div class="stat-label-text">Recent ticks used<br>for live risk estimates</div>
   </div>
   <div class="stat-item">
     <div class="stat-number">3</div>
-    <div class="stat-label-text">Risk categories:<br>Healthy, Unhealthy, Critical</div>
+    <div class="stat-label-text">Patient statuses:<br>Healthy, Unhealthy, Critical</div>
   </div>
 </div>
 
@@ -338,17 +338,17 @@ body.page-exit{opacity:0;transform:translateY(-18px);pointer-events:none;}
     <div class="step">
       <div class="step-num">1</div>
       <h3 class="step-title">Ingest & Log</h3>
-      <p class="step-text">IoT sensors stream vitals over a persistent TCP socket. Each reading is timestamped and logged per patient into a local database, including SpO₂, heart rate, blood pressure, temperature, and activity.</p>
+      <p class="step-text">The IoT simulator streams vitals over a persistent TCP socket. Each reading is timestamped and logged per patient into a local database, including SpO₂, heart rate, blood pressure, temperature, and activity.</p>
     </div>
     <div class="step">
       <div class="step-num">2</div>
       <h3 class="step-title">Infer & Predict</h3>
-      <p class="step-text">A trained neural network runs inference on each patient's latest readings and 7-day history, producing a risk score and confidence value. Low-confidence critical results are downgraded automatically.</p>
+      <p class="step-text">A trained neural network classifies incoming readings and provides rolling risk estimates after seven ticks of history. Low-confidence Critical results are downgraded automatically.</p>
     </div>
     <div class="step">
       <div class="step-num">3</div>
       <h3 class="step-title">Surface & Alert</h3>
-      <p class="step-text">The dashboard updates continuously with the latest risk scores, status labels, and feature-importance breakdowns. Alerts are generated for status changes and streamed to the alert feed in real time.</p>
+      <p class="step-text">The dashboard updates continuously with the latest risk scores, status labels, and feature-importance breakdowns. Alerts reflect Critical patient states and high-risk predictions.</p>
     </div>
   </div>
 </div>

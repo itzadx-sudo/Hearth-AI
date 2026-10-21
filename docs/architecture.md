@@ -38,7 +38,7 @@ main.py                  launcher — starts the AI server, simulator, and dashb
 ├── hearth_dashboard.html  dashboard and client-side API calls
 ├── static/              logo asset
 ├── hearth_tabnet.pth     bundled model checkpoint
-└── HearthAI.spec         PyInstaller specification (currently uses stale module paths)
+└── HearthAI.spec         PyInstaller specification
 ```
 
 ## Processes and data flow
@@ -59,6 +59,15 @@ This does not start the AI server or simulator. The Flask app binds to `0.0.0.0`
 
 ## Packaging
 
-`HearthAI.spec` still names files and imports from an older flat layout, including `ai_server.py`, `iot_simulator.py`, and `hearth_gui`. These paths do not match the current module structure, so the specification needs updating before packaging.
+`HearthAI.spec` uses the current package imports and bundles the HTML pages, static assets, model checkpoint, and the `server/ai_server.py` and `iot/simulator.py` scripts used by the frozen launcher. Paths are resolved relative to the specification file.
+
+Install PyInstaller separately from the application dependencies, then build from the repository root:
+
+```bash
+python -m pip install pyinstaller
+python -m PyInstaller --clean --noconfirm HearthAI.spec
+```
+
+The specification creates a console executable at `dist/HearthAI` (`dist/HearthAI.exe` on Windows). Build and verify it on each target operating system; a successful build alone does not verify the packaged application's runtime behavior.
 
 See [Configuration and runtime data](configuration.md) for database locations and [Model](model.md) for inference behavior.

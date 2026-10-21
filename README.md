@@ -46,7 +46,7 @@ Dashboard charts and fonts load from external services and need internet access.
 
 ## Dashboard access
 
-- **Admin Demo:** use the dashboard button for the demo account (`admin` / `adminpassword`). The browser creates the account if needed. Admins can assign patients and start retraining.
+- **Admin Mode:** use the dashboard button for the demo account (`admin` / `adminpassword`). The browser creates the account if needed. Admins can assign patients and start retraining.
 - **Guardian:** sign up, then ask an admin to assign patient IDs to your account.
 - Display names can be edited in the dashboard.
 
@@ -70,13 +70,13 @@ See [Architecture](docs/architecture.md) for the source map, process layout, and
 ## Known limitations
 
 - Training and live demo data are synthetic.
-- Risk scores do not establish a seven-day forecast horizon, despite some UI labels. See [Model](docs/model.md).
+- Risk scores summarize recent readings; a seven-day forecast horizon is not established. See [Model](docs/model.md).
 - Guardian patient restrictions are not enforced consistently across all API routes.
 - Password reset displays a message only; no reset email is sent.
 - Live alerts do not use the separate debounced alert helper.
 - Dashboard retraining temporarily blocks most API routes, uses a different data path from the default trainer, and does not automatically reload the separate AI server's model. See [Training](docs/training.md#dashboard-retraining).
 - Some thresholds and windows remain hardcoded. See [Configuration](docs/configuration.md#configuration-limits).
-- The PyInstaller specification contains stale module paths. See [Architecture](docs/architecture.md#packaging).
+- Packaged builds need verification on each target platform. See [Architecture](docs/architecture.md#packaging).
 
 ## Further documentation
 
