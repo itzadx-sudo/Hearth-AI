@@ -13,7 +13,7 @@ LOW_CONFIDENCE_THRESHOLD = 0.55   # live Critical predictions below this become 
 CRITICAL_CONF_THRESHOLD  = 0.55   # confidence floor for highlighting Critical patients
 RISK_LABEL_THRESHOLD     = 0.55   # model risk score threshold for HIGH RISK
 PREDICT_EVERY_N          = 1      # live risk inference cadence after seven ticks
-DEBOUNCE_THRESHOLD       = 3     # used by the separate alert helper, not the live server
+DEBOUNCE_THRESHOLD       = 3     # consecutive live Critical ticks per alert
 WINDOW_DAYS              = 7     # historical lookback requested by the predictor wrapper
 ```
 
@@ -43,7 +43,7 @@ WINDOW_DAYS              = 7     # historical lookback requested by the predicto
 | Windows | `%APPDATA%\HearthAI\` (home directory fallback if `APPDATA` is unset) |
 | Linux / other | `~/.hearthai/` |
 
-Runtime files include `hearth_tabnet.pth`, `hearth_sensor.db`, `hearth_results.db`, `hearth_live.db`, and `user.db`. Live sessions use `hearth_live.db`; historical summaries, predictions, and alerts use `hearth_results.db`; authentication uses `user.db`. An existing runtime checkpoint takes precedence over the bundled checkpoint.
+Runtime files include `hearth_tabnet.pth`, `hearth_sensor.db`, `hearth_results.db`, `hearth_live.db`, and `user.db`. Live readings, predictions, and alert events use `hearth_live.db`; historical summaries, predictions, and alerts use `hearth_results.db`; authentication uses `user.db`. An existing runtime checkpoint takes precedence over the bundled checkpoint.
 
 The standalone generator uses files under `data/`, and dashboard retraining generates `hearth_sensor.db` in the repository root. These paths differ from the default persistent sensor database.
 

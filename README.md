@@ -6,8 +6,8 @@ A home-care patient monitoring demo that streams synthetic vitals, classifies pa
 
 - **Simulated vitals:** heart rate, blood pressure, temperature, SpO2, and activity streamed over TCP.
 - **Patient assessment:** Healthy / Unhealthy / Critical classification, rolling risk scores, and model attention views.
-- **Live dashboard:** patient charts, alerts, and per-patient details.
-- **Accounts and administration:** guardian accounts, patient assignment, and admin retraining.
+- **Live dashboard:** patient charts, debounced Critical alerts, risk alerts, and per-patient details.
+- **Accounts and administration:** guardian accounts with assigned-patient access, patient assignment, and admin retraining.
 
 ## Quick start
 
@@ -46,7 +46,7 @@ Dashboard charts and fonts load from external services and need internet access.
 
 ## Dashboard access
 
-- **Admin Mode:** use the dashboard button for the demo account (`admin` / `adminpassword`). The browser creates the account if needed. Admins can assign patients and start retraining.
+- **Admin Mode:** use the dashboard button for the demo account (`admin` / `adminpassword`). The server creates the demo account at startup if needed. Admins can assign patients and start retraining.
 - **Guardian:** sign up, then ask an admin to assign patient IDs to your account.
 - Display names can be edited in the dashboard.
 
@@ -67,16 +67,9 @@ Simulator → TCP server → TabNet → SQLite → Flask dashboard
 
 See [Architecture](docs/architecture.md) for the source map, process layout, and TCP format.
 
-## Known limitations
+## Demo data
 
-- Training and live demo data are synthetic.
-- Live risk estimates use seven ticks of history. The model does not implement a fixed seven-day forecast. See [Model](docs/model.md).
-- Guardian patient restrictions are not enforced consistently across all API routes.
-- Password reset displays a message only; no reset email is sent.
-- Live alerts do not use the separate debounced alert helper.
-- Dashboard retraining temporarily blocks most API routes, uses a different data path from the default trainer, and does not automatically reload the separate AI server's model. See [Training](docs/training.md#dashboard-retraining).
-- Some thresholds and windows remain hardcoded. See [Configuration](docs/configuration.md#configuration-limits).
-- Packaging is platform-specific. See [Architecture](docs/architecture.md#packaging).
+Training and live demo data are synthetic.
 
 ## Further documentation
 

@@ -27,6 +27,6 @@ The fallback assigns fixed confidence `0.80` and uniform attention weights (`1/8
 
 Risk estimates are unavailable in fallback mode because `predict_risk()` requires a loaded model.
 
-The dashboard derives critical and predictive alerts from stored patient states and risk predictions. `server/alert_engine.py` contains a separate debounced alert helper; the live server does not call it.
+The live server uses `server/alert_engine.py` for alerts. A Critical alert is emitted after `DEBOUNCE_THRESHOLD` consecutive Critical ticks (default 3), then the streak counter resets. A non-Critical tick or a gap in patient readings resets the streak. Predictive alerts are recorded for HIGH RISK model results. Live alerts are stored per session in `hearth_live.db` and read by the dashboard.
 
 See [Training](training.md) for training commands and [Configuration](configuration.md) for thresholds and their limits.

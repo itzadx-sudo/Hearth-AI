@@ -28,6 +28,7 @@ from model.engine import (get_engine, TabNetEngine, LABEL_TO_IDX, IDX_TO_LABEL,
 from config import (SERVER_HOST as HOST, SERVER_PORT as PORT, MAX_MSG_BYTES,
                     PREDICT_EVERY_N, EXERTION_BIAS_HR, EXERTION_BIAS_SBP,
                     CRITICAL_CONF_THRESHOLD, LOW_CONFIDENCE_THRESHOLD)
+from server import alert_engine
 
 LIVE_MODE = os.environ.get("HEARTH_LIVE_MODE") == "1"
 
@@ -249,10 +250,10 @@ class AsyncHearthServer:
         if LIVE_MODE:
             self._tick += 1
             tick_time   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            self._handle_live_mode(tick_time, readings, patient_last_idx, indices, confidences, attention, feature_names)
+            await self._handle_live_mode(tick_time, readings, patient_last_idx, indices, confidences, attention, feature_names)
 
 
-    def _handle_live_mode(self, tick_time: str, readings: list,
+    async def _handle_live_mode(self, tick_time: str, readings: list,
                           patient_last_idx: Dict[str, int],
                           indices, confidences, attention, feature_names):
         # store tick + maybe predict
@@ -263,6 +264,7 @@ class AsyncHearthServer:
                         for j, feat in enumerate(feature_names)}
             tick_results.append({
                 "patient_id":   int(pid),
+                "input_used":   r,
                 "status":       IDX_TO_LABEL[int(indices[idx])],
                 "confidence":   float(confidences[idx]),
                 "heart_rate":   r.get("heart_rate"),
@@ -277,13 +279,18 @@ class AsyncHearthServer:
         live_db.store_tick_results(
             self._session_id, self._tick, tick_time, tick_results
         )
+        for result in tick_results:
+            await alert_engine.check_and_alert(
+                result["patient_id"], result,
+                session_id=self._session_id, tick=self._tick, tick_time=tick_time,
+            )
 
         # need at least 7 ticks of history before predictions make sense
         if self._tick >= 7 and self._tick % PREDICT_EVERY_N == 0:
             patient_ids = list(patient_last_idx.keys())
-            self._compute_live_predictions(tick_time, patient_ids)
+            await self._compute_live_predictions(tick_time, patient_ids)
 
-    def _compute_live_predictions(self, tick_time: str, patient_ids: list):
+    async def _compute_live_predictions(self, tick_time: str, patient_ids: list):
         high_risk  = []
         n_assessed = 0
 
@@ -309,6 +316,9 @@ class AsyncHearthServer:
 
             live_db.store_live_prediction(
                 self._session_id, self._tick, tick_time, int(pid), result
+            )
+            await alert_engine.add_predictive_alert(
+                int(pid), result, session_id=self._session_id, tick=self._tick, tick_time=tick_time,
             )
             n_assessed += 1
             if result.get("risk_score", 0) >= 0.5:

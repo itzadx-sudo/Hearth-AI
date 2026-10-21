@@ -309,7 +309,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 
   <div class="stats-strip" id="stats-strip">
     <div class="stat-ring-cell"><div class="stat-icon" style="background:var(--teal-pale);color:var(--teal)"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div><div class="stat-label">Patients</div><div class="stat-big" style="color:var(--teal)" id="s-total">—</div><div class="stat-desc" id="s-days">Loading…</div></div></div>
-    <div class="stat-ring-cell"><div class="ring-svg-wrap"><svg viewBox="0 0 76 76"><circle class="ring-bg" cx="38" cy="38" r="32" stroke="var(--rose-pale)"/><circle class="ring-fill" id="ring-crit" cx="38" cy="38" r="32" stroke="var(--rose)" stroke-dasharray="201.1" stroke-dashoffset="201.1"/></svg><div class="ring-center-text"><span class="ring-num" style="color:var(--rose)" id="ring-num-crit">—</span><span class="ring-pct" id="ring-pct-crit"></span></div></div><div><div class="stat-label">Critical</div><div class="stat-big" style="color:var(--rose)" id="s-crit">—</div><div class="stat-desc">Active Alerts</div></div></div>
+    <div class="stat-ring-cell"><div class="ring-svg-wrap"><svg viewBox="0 0 76 76"><circle class="ring-bg" cx="38" cy="38" r="32" stroke="var(--rose-pale)"/><circle class="ring-fill" id="ring-crit" cx="38" cy="38" r="32" stroke="var(--rose)" stroke-dasharray="201.1" stroke-dashoffset="201.1"/></svg><div class="ring-center-text"><span class="ring-num" style="color:var(--rose)" id="ring-num-crit">—</span><span class="ring-pct" id="ring-pct-crit"></span></div></div><div><div class="stat-label">Critical</div><div class="stat-big" style="color:var(--rose)" id="s-crit">—</div><div class="stat-desc">Current status</div></div></div>
     <div class="stat-ring-cell"><div class="ring-svg-wrap"><svg viewBox="0 0 76 76"><circle class="ring-bg" cx="38" cy="38" r="32" stroke="var(--amber-pale)"/><circle class="ring-fill" id="ring-unh" cx="38" cy="38" r="32" stroke="var(--amber)" stroke-dasharray="201.1" stroke-dashoffset="201.1"/></svg><div class="ring-center-text"><span class="ring-num" style="color:var(--amber)" id="ring-num-unh">—</span><span class="ring-pct" id="ring-pct-unh"></span></div></div><div><div class="stat-label">Unhealthy</div><div class="stat-big" style="color:var(--amber)" id="s-unh">—</div><div class="stat-desc">Monitoring<br>required</div></div></div>
     <div class="stat-ring-cell"><div class="ring-svg-wrap"><svg viewBox="0 0 76 76"><circle class="ring-bg" cx="38" cy="38" r="32" stroke="var(--gold-pale)"/><circle class="ring-fill" id="ring-ok" cx="38" cy="38" r="32" stroke="var(--gold)" stroke-dasharray="201.1" stroke-dashoffset="201.1"/></svg><div class="ring-center-text"><span class="ring-num" style="color:var(--gold)" id="ring-num-ok">—</span><span class="ring-pct" id="ring-pct-ok"></span></div></div><div><div class="stat-label">Healthy</div><div class="stat-big" style="color:var(--gold)" id="s-ok">—</div><div class="stat-desc">Stable<br>condition</div></div></div>
   </div>
@@ -651,6 +651,7 @@ function ft(u){
       return r.json().then(d=>{if(d.training)_showTrainingOverlay(d.message);throw new Error('training');});
     }
     if(!r.ok)throw new Error(r.status);
+    if(currentRole==='guardian')_hideTrainingOverlay();
     return r.json();
   });
 }
@@ -1691,11 +1692,12 @@ async function checkAuth(){
       if(currentRole==='admin'){if(aCards)aCards.style.display='grid';if(aPan)aPan.style.display='block';if(gPan)gPan.style.display='none';
         const gRes=await ft('/api/guardians');
         if(Array.isArray(gRes))_gSelPopulate(gRes);
+        _checkTrainOnLoad();
       }else{if(aCards)aCards.style.display='none';if(aPan)aPan.style.display='none';if(gPan)gPan.style.display='block';
         currentUserDisp=res.display_name||res.username;const setHdr=document.getElementById('g-setting-header');if(setHdr)setHdr.textContent=`Settings for ${currentUserDisp}`;
         const dispBtn=document.getElementById('g-display-name');if(dispBtn)dispBtn.textContent='Change Name';}
       loadOv();
-    }else{document.getElementById('auth-view').style.display='flex';document.getElementById('wrap').style.display='none';}
+    }else{currentRole=null;PTS=[];ALS=[];document.getElementById('auth-view').style.display='flex';document.getElementById('wrap').style.display='none';}
   }catch(e){console.error(e);}
 }
 function toggleAuthMode(){isSignup=!isSignup;document.getElementById('auth-subtitle').textContent=isSignup?'Create a Guardian account':'Login to your account';document.getElementById('auth-main-btn').textContent=isSignup?'Sign Up':'Login';document.getElementById('auth-main-btn').onclick=isSignup?doSignup:doLogin;document.getElementById('auth-toggle-link').textContent=isSignup?'Already have an account? Login':'Create an account (Signup)';document.getElementById('auth-msg').textContent='';}
@@ -1709,9 +1711,7 @@ async function doAdminDemo(){
   document.getElementById('auth-msg').textContent='';
   try{
     if(_logoutCtrl){_logoutCtrl.abort();_logoutCtrl=null;}
-    try{await _authReq('/api/login',{username:'admin',password:'adminpassword'});}
-    catch{try{await _authReq('/api/signup',{username:'admin',password:'adminpassword',role:'admin'});}catch{}
-      await _authReq('/api/login',{username:'admin',password:'adminpassword'});}
+    await _authReq('/api/login',{username:'admin',password:'adminpassword'});
     await checkAuth();
   }catch(e){
     document.getElementById('auth-msg').textContent=e.message;
@@ -1748,7 +1748,7 @@ document.getElementById('prompt-input').addEventListener('keydown', (e) => {
 });
 
 let _logoutCtrl=null;
-async function doLogout(){_logoutCtrl=new AbortController();fetch('/api/logout',{method:'POST',signal:_logoutCtrl.signal}).catch(()=>{});document.getElementById('auth-user').value='';document.getElementById('auth-pass').value='';document.getElementById('auth-msg').textContent='';const av=document.getElementById('auth-view');av.classList.remove('fade-in');av.style.display='flex';document.getElementById('wrap').style.display='none';requestAnimationFrame(()=>av.classList.add('fade-in'));}
+async function doLogout(){currentRole=null;PTS=[];ALS=[];clearInterval(_trainPollTimer);_trainPollTimer=null;_hideTrainingOverlay();_logoutCtrl=new AbortController();fetch('/api/logout',{method:'POST',signal:_logoutCtrl.signal}).catch(()=>{});document.getElementById('auth-user').value='';document.getElementById('auth-pass').value='';document.getElementById('auth-msg').textContent='';const av=document.getElementById('auth-view');av.classList.remove('fade-in');av.style.display='flex';document.getElementById('wrap').style.display='none';requestAnimationFrame(()=>av.classList.add('fade-in'));}
 async function assignPatient(){
   const txt=document.getElementById('assign-guser-txt');
   if(txt)document.getElementById('assign-guser').value=txt.value.trim();
@@ -1873,7 +1873,7 @@ function _hideTrainingOverlay(){
   document.getElementById('training-overlay').style.display='none';
 }
 function _startTrainPoll(){
-  if(_trainPollTimer)return;
+  if(_trainPollTimer||currentRole!=='admin')return;
   _trainPollTimer=setInterval(async()=>{
     try{
       const r=await fetch('/api/training_status');const d=await r.json();
@@ -1892,11 +1892,12 @@ function _startTrainPoll(){
     }catch{}
   },4000);
 }
-(async function _checkTrainOnLoad(){
+async function _checkTrainOnLoad(){
+  if(currentRole!=='admin')return;
   try{const r=await fetch('/api/training_status');const d=await r.json();
     if(d.training){_showTrainingOverlay(d.message);_startTrainPoll();}
   }catch{}
-})();
+}
 
 // bug report
 function openBugReport(){document.getElementById('bugreport-input').value='';document.getElementById('bugreport-ov').classList.add('open');}
@@ -1912,6 +1913,7 @@ function submitBugReport(){
 checkAuth();
 window.addEventListener('pageshow',e=>{if(e.persisted)checkAuth();});
 setInterval(()=>{
+  if(!currentRole)return;
   loadOv();
   if(document.querySelector('.nav-link[data-page="live"].active'))loadLive();
   if(IS_LIVE&&document.querySelector('.nav-link[data-page="patients"].active'))loadPts();

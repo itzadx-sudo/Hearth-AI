@@ -9,43 +9,58 @@ from config import MAX_ALERTS, DEBOUNCE_THRESHOLD
 _alert_queue:             collections.deque = collections.deque(maxlen=MAX_ALERTS)
 _predictive_queue:        collections.deque = collections.deque(maxlen=MAX_ALERTS)
 _patient_critical_streak: dict              = {}
+_patient_last_tick: dict                    = {}
 
 _queue_lock      = threading.Lock()
 _predictive_lock = threading.Lock()
 _streak_lock     = threading.Lock()
 
 
-async def check_and_alert(patient_id, result):
-    if result.get("status") != "Critical":
-        with _streak_lock:
-            _patient_critical_streak.pop(patient_id, None)
-        return
-
-    # count consecutive criticals, reset after firing
+async def check_and_alert(patient_id, result, *, session_id=None, tick=None, tick_time=None):
+    key = (session_id, patient_id)
     fire = False
     with _streak_lock:
-        streak = _patient_critical_streak.get(patient_id, 0) + 1
-        _patient_critical_streak[patient_id] = streak
+        if session_id is not None and tick is not None:
+            last_tick = _patient_last_tick.get(key)
+            if last_tick is not None and tick <= last_tick:
+                return
+            if last_tick is not None and tick != last_tick + 1:
+                _patient_critical_streak.pop(key, None)
+            _patient_last_tick[key] = tick
+        if result.get("status") != "Critical":
+            _patient_critical_streak.pop(key, None)
+            return
+        streak = _patient_critical_streak.get(key, 0) + 1
+        _patient_critical_streak[key] = streak
         if streak >= DEBOUNCE_THRESHOLD:
             fire = True
-            _patient_critical_streak[patient_id] = 0
+            _patient_critical_streak[key] = 0
 
     if not fire:
         return
 
     alert = {
-        "timestamp":  datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp":  tick_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "patient_id": patient_id,
         "status":     result["status"],
         "confidence": round(result.get("confidence", 0.0), 4),
         "vitals":     result.get("input_used", {}),
     }
 
-    data_logger.store_alert(patient_id, alert_type="critical",
-                            severity=result["status"], details=result.get("input_used", {}))
+    if session_id is not None:
+        alert["session_id"] = session_id
+        alert["tick"] = tick
+        data_logger.store_live_alert(session_id, tick, alert["timestamp"], patient_id,
+                                     "critical", result["status"],
+                                     confidence=alert["confidence"], details={"vitals": alert["vitals"]})
+    else:
+        data_logger.store_alert(patient_id, alert_type="critical",
+                                severity=result["status"],
+                                details={"vitals": alert["vitals"], "confidence": alert["confidence"]})
 
     with _queue_lock:
         _alert_queue.append(alert)
+    return alert
 
 
 async def get_alerts(limit=None) -> list:
@@ -59,24 +74,32 @@ async def alert_count() -> int:
         return len(_alert_queue)
 
 
-async def add_predictive_alert(patient_id, prediction_result):
+async def add_predictive_alert(patient_id, prediction_result, *, session_id=None, tick=None, tick_time=None):
     if prediction_result.get("risk_label") != "HIGH RISK":
         return
 
     alert = {
-        "timestamp":   datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp":   tick_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "patient_id":  patient_id,
         "risk_label":  "HIGH RISK",
         "risk_score":  prediction_result.get("risk_score"),
         "top_factors": prediction_result.get("top_factors"),
     }
 
-    data_logger.store_alert(patient_id, alert_type="predictive", severity="HIGH RISK",
-                            details={"risk_score": prediction_result.get("risk_score"),
-                                     "top_factors": prediction_result.get("top_factors")})
+    details = {"risk_score": alert["risk_score"], "top_factors": alert["top_factors"]}
+    if session_id is not None:
+        alert["session_id"] = session_id
+        alert["tick"] = tick
+        data_logger.store_live_alert(session_id, tick, alert["timestamp"], patient_id,
+                                     "predictive", "HIGH RISK", confidence=alert["risk_score"],
+                                     details=details)
+    else:
+        data_logger.store_alert(patient_id, alert_type="predictive", severity="HIGH RISK",
+                                details=details)
 
     with _predictive_lock:
         _predictive_queue.append(alert)
+    return alert
 
 
 async def get_predictive_alerts(limit=None) -> list:

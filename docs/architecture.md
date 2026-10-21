@@ -14,7 +14,7 @@ main.py                  launcher — starts the AI server, simulator, and dashb
 │
 ├── server/
 │   ├── ai_server.py     TCP server — receives IoT frames, runs inference, writes results
-│   ├── alert_engine.py  async alert queue with debounce logic
+│   ├── alert_engine.py  debounced Critical alerts and predictive alert events
 │   ├── api.py           validation, dashboard data, and prediction helpers
 │   └── device_adapter.py  bridges raw device TCP to the AI server format
 │
@@ -45,7 +45,7 @@ main.py                  launcher — starts the AI server, simulator, and dashb
 
 - The launcher runs the IoT simulator and AI server as separate subprocesses; Flask runs in a thread in the launcher process.
 - Flask REST routes are defined in `ui/gui.py`. `server/api.py` provides supporting functions and sensor validation.
-- Historical result writes in `data/logger.py` use a daemon-thread queue. Live tick and prediction writes are synchronous. Authentication and some dashboard queries access SQLite directly.
+- Historical result writes in `data/logger.py` use a daemon-thread queue. Live tick, prediction, and alert writes are synchronous. Authentication and some dashboard queries access SQLite directly.
 - Simulator-to-server messages use a 4-byte big-endian length prefix followed by a JSON payload containing `sim_date` and `readings`. The AI server caps frames at 10 MB.
 - The optional device adapter accepts an unframed JSON list, translates vendor field names, and forwards framed messages to the AI server. The launcher does not start this adapter.
 
@@ -71,3 +71,8 @@ python -m PyInstaller --clean --noconfirm HearthAI.spec
 The console executable is written to `dist/HearthAI` (`dist/HearthAI.exe` on Windows). Build on the target operating system.
 
 See [Configuration and runtime data](configuration.md) for database locations and [Model](model.md) for inference behavior.
+
+
+## API access
+
+Patient API routes require login. Guardian lists, details, alerts, summaries, trends, and health counters include only assigned patients. Admin sessions can access all patients. Public signup creates guardian accounts; the demo admin account is created at server startup. Assignment, retraining, guardian listings, and training status require an admin session.

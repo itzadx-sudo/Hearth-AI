@@ -390,27 +390,22 @@ def get_all_patients_latest():
     return [dict(r) for r in rows]
 
 
-def get_day_overview(sim_date):
+def get_day_overview(sim_date, patient_ids=None):
     _ensure_tables()
+    scope, ids = _patient_filter(patient_ids)
     with _db_conn(RESULTS_DB_PATH) as conn:
-        row = conn.execute("""
-            SELECT
-                COUNT(DISTINCT patient_id) AS total_patients,
-                SUM(CASE WHEN worst_status = 'Healthy' THEN 1 ELSE 0 END) AS healthy_count,
-                SUM(CASE WHEN worst_status = 'Unhealthy' THEN 1 ELSE 0 END) AS unhealthy_count,
-                SUM(CASE WHEN worst_status = 'Critical' THEN 1 ELSE 0 END) AS critical_count
-            FROM daily_summaries WHERE sim_date = ?
-        """, (sim_date,)).fetchone()
-
-    if not row or row[0] == 0:
+        row = conn.execute(
+            "SELECT COUNT(DISTINCT patient_id), "
+            "SUM(CASE WHEN worst_status='Healthy' THEN 1 ELSE 0 END), "
+            "SUM(CASE WHEN worst_status='Unhealthy' THEN 1 ELSE 0 END), "
+            "SUM(CASE WHEN worst_status='Critical' THEN 1 ELSE 0 END) "
+            "FROM daily_summaries WHERE sim_date=?" + scope,
+            (sim_date, *ids),
+        ).fetchone()
+    if not row or not row[0]:
         return None
-    return {
-        'sim_date': sim_date,
-        'total_patients': row[0],
-        'healthy_count': row[1] or 0,
-        'unhealthy_count': row[2] or 0,
-        'critical_count': row[3] or 0,
-    }
+    return {"sim_date": sim_date, "total_patients": row[0], "healthy_count": row[1] or 0,
+            "unhealthy_count": row[2] or 0, "critical_count": row[3] or 0}
 
 
 def get_low_confidence_patients(sim_date):
@@ -662,26 +657,23 @@ def store_alert(patient_id, alert_type, severity=None, details=None):
         print("[WARN] _write_queue is full, dropping DB write!")
 
 
-def get_alerts_from_db(limit=100, alert_type=None):
+def get_alerts_from_db(limit=100, alert_type=None, patient_ids=None):
     _ensure_tables()
+    scope, ids = _patient_filter(patient_ids)
+    sql = "SELECT * FROM alerts WHERE 1=1"
+    params = ()
+    if alert_type:
+        sql += " AND alert_type=?"
+        params = (alert_type,)
     with _db_conn(RESULTS_DB_PATH, sqlite3.Row) as conn:
-        if alert_type:
-            rows = conn.execute(
-                "SELECT * FROM alerts WHERE alert_type = ? ORDER BY id DESC LIMIT ?",
-                (alert_type, limit)).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM alerts ORDER BY id DESC LIMIT ?",
-                (limit,)).fetchall()
-    results = []
-    for r in rows:
-        d = dict(r)
-        if d.get('details'):
+        rows = conn.execute(sql + scope + " ORDER BY id DESC LIMIT ?", (*params, *ids, limit)).fetchall()
+    results = [dict(row) for row in rows]
+    for row in results:
+        if row.get("details"):
             try:
-                d['details'] = json.loads(d['details'])
+                row["details"] = json.loads(row["details"])
             except (json.JSONDecodeError, TypeError):
                 pass
-        results.append(d)
     return results
 
 
@@ -749,6 +741,20 @@ def init_live_db():
                 );
                 CREATE INDEX IF NOT EXISTS idx_lp_sess_pid
                     ON live_predictions(session_id, patient_id);
+                CREATE TABLE IF NOT EXISTS live_alerts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    tick INTEGER NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    patient_id INTEGER NOT NULL,
+                    alert_type TEXT NOT NULL,
+                    severity TEXT,
+                    confidence REAL,
+                    details TEXT,
+                    UNIQUE(session_id, tick, patient_id, alert_type)
+                );
+                CREATE INDEX IF NOT EXISTS idx_live_alert_session_patient
+                    ON live_alerts(session_id, patient_id, id DESC);
             """)
             conn.commit()
         finally:
@@ -841,185 +847,99 @@ def get_live_high_risk_patients(session_id: str, at_tick: int,
     return [dict(r) for r in rows]
 
 
-def get_latest_predictions(session_id: str, limit: Optional[int] = None) -> list:
-    # most recent risk prediction per patient
-    conn = _live_conn()
-    try:
-        rows = conn.execute(
-            """
-            SELECT lp.*
-            FROM live_predictions lp
-            INNER JOIN (
-                SELECT patient_id, MAX(computed_at_tick) AS max_tick
-                FROM live_predictions WHERE session_id = ?
-                GROUP BY patient_id
-            ) m ON  lp.patient_id        = m.patient_id
-                AND lp.computed_at_tick  = m.max_tick
-                AND lp.session_id        = ?
-            ORDER BY lp.risk_score DESC
-            """,
-            (session_id, session_id),
-        ).fetchall()
-    finally:
-        conn.close()
-    results = [dict(r) for r in rows]
+def get_latest_predictions(session_id: str, limit: Optional[int] = None, patient_ids=None) -> list:
+    rows = _read_live(
+        "SELECT lp.* FROM live_predictions lp INNER JOIN ("
+        "SELECT patient_id, MAX(computed_at_tick) AS max_tick FROM live_predictions "
+        "WHERE session_id=? GROUP BY patient_id) m "
+        "ON lp.patient_id=m.patient_id AND lp.computed_at_tick=m.max_tick "
+        "WHERE lp.session_id=?", (session_id, session_id), patient_ids,
+        column="lp.patient_id", suffix=" ORDER BY lp.risk_score DESC",
+    )
+    results = [dict(row) for row in rows]
     return results[:limit] if limit is not None else results
 
 
-def get_latest_patient_states(session_id: str) -> list:
-    # most recent tick result per patient
-    conn = _live_conn()
-    try:
-        rows = conn.execute(
-            """
-            SELECT t.*
-            FROM live_tick_results t
-            INNER JOIN (
-                SELECT patient_id, MAX(tick) AS max_tick
-                FROM live_tick_results WHERE session_id = ?
-                GROUP BY patient_id
-            ) m ON t.patient_id = m.patient_id
-               AND t.tick       = m.max_tick
-               AND t.session_id = ?
-            ORDER BY t.patient_id
-            """,
-            (session_id, session_id),
-        ).fetchall()
-    finally:
-        conn.close()
-    return [dict(r) for r in rows]
+def get_latest_patient_states(session_id: str, patient_ids=None) -> list:
+    rows = _read_live(
+        "SELECT t.* FROM live_tick_results t INNER JOIN ("
+        "SELECT patient_id, MAX(tick) AS max_tick FROM live_tick_results "
+        "WHERE session_id=? GROUP BY patient_id) m "
+        "ON t.patient_id=m.patient_id AND t.tick=m.max_tick "
+        "WHERE t.session_id=?", (session_id, session_id), patient_ids,
+        column="t.patient_id", suffix=" ORDER BY t.patient_id",
+    )
+    return [dict(row) for row in rows]
 
 
-def get_latest_tick_stats(session_id: str) -> dict:
-    # summary counts for the most recent tick
-    conn = _live_conn()
-    try:
-        latest_tick = conn.execute(
-            "SELECT COALESCE(MAX(tick),0) FROM live_tick_results WHERE session_id=?",
-            (session_id,),
-        ).fetchone()[0]
-        if not latest_tick:
-            return {}
-        rows = conn.execute(
-            "SELECT * FROM live_tick_results WHERE session_id=? AND tick=?",
-            (session_id, latest_tick),
-        ).fetchall()
-    finally:
-        conn.close()
-
-    patients = [dict(r) for r in rows]
-    if not patients:
+def get_latest_tick_stats(session_id: str, patient_ids=None) -> dict:
+    latest_tick = _read_live(
+        "SELECT COALESCE(MAX(tick),0) FROM live_tick_results WHERE session_id=?",
+        (session_id,), patient_ids,
+    )[0][0]
+    if not latest_tick:
         return {}
-
-    def _avg(key):
-        vals = [p[key] for p in patients if p.get(key) is not None]
-        return round(sum(vals) / len(vals), 2) if vals else None
-
-    sc = {}
-    for p in patients:
-        st = p.get("status") or "Unknown"
-        sc[st] = sc.get(st, 0) + 1
-
-    return {
-        "tick": latest_tick,
-        "patient_count": len(patients),
-        "status_counts": sc,
-        "avg_heart_rate": _avg("heart_rate"),
-        "avg_systolic": _avg("systolic_bp"),
-        "avg_diastolic": _avg("diastolic_bp"),
-        "avg_temp": _avg("body_temp"),
-        "avg_spo2": _avg("spo2"),
-    }
+    patients = [dict(row) for row in _read_live(
+        "SELECT * FROM live_tick_results WHERE session_id=? AND tick=?",
+        (session_id, latest_tick), patient_ids,
+    )]
+    def average(key):
+        values = [p[key] for p in patients if p.get(key) is not None]
+        return round(sum(values) / len(values), 2) if values else None
+    counts = {}
+    for patient in patients:
+        status = patient.get("status") or "Unknown"
+        counts[status] = counts.get(status, 0) + 1
+    return {"tick": latest_tick, "patient_count": len(patients), "status_counts": counts,
+            "avg_heart_rate": average("heart_rate"), "avg_systolic": average("systolic_bp"),
+            "avg_diastolic": average("diastolic_bp"), "avg_temp": average("body_temp"),
+            "avg_spo2": average("spo2")}
 
 
-def get_tick_series(session_id: str, n: int = 40) -> list:
-    # status breakdown across all ticks
-    conn = _live_conn()
-    try:
-        rows = conn.execute(
-            """
-            SELECT tick, tick_time, status, COUNT(*) AS cnt
-            FROM live_tick_results
-            WHERE session_id = ?
-            GROUP BY tick, status
-            ORDER BY tick DESC
-            LIMIT ?
-            """,
-            (session_id, n * 6),
-        ).fetchall()
-    finally:
-        conn.close()
-
+def get_tick_series(session_id: str, n: int = 40, patient_ids=None) -> list:
+    rows = _read_live(
+        "SELECT tick, tick_time, status, COUNT(*) AS cnt FROM live_tick_results WHERE session_id=?",
+        (session_id,), patient_ids,
+        suffix=" GROUP BY tick, status ORDER BY tick DESC LIMIT ?", suffix_params=(n * 6,),
+    )
     ticks = {}
-    for r in rows:
-        t = r["tick"]
-        if t not in ticks:
-            ticks[t] = {"tick": t, "tick_time": r["tick_time"],
-                        "Healthy": 0, "Unhealthy": 0, "Critical": 0}
-        if r["status"] in ticks[t]:
-            ticks[t][r["status"]] = r["cnt"]
-    return sorted(ticks.values(), key=lambda x: x["tick"])[-n:]
+    for row in rows:
+        tick = row["tick"]
+        if tick not in ticks:
+            ticks[tick] = {"tick": tick, "tick_time": row["tick_time"],
+                           "Healthy": 0, "Unhealthy": 0, "Critical": 0}
+        if row["status"] in ticks[tick]:
+            ticks[tick][row["status"]] = row["cnt"]
+    return sorted(ticks.values(), key=lambda row: row["tick"])[-n:]
 
 
-def get_latest_session() -> Optional[str]:
-    # most recent session ID from live DB
-    conn = _live_conn()
-    try:
-        row = conn.execute(
-            "SELECT session_id FROM live_tick_results ORDER BY rowid DESC LIMIT 1"
-        ).fetchone()
-    finally:
-        conn.close()
-    return row[0] if row else None
+def get_latest_session(patient_ids=None) -> Optional[str]:
+    rows = _read_live(
+        "SELECT session_id FROM live_tick_results WHERE 1=1", patient_ids=patient_ids,
+        suffix=" ORDER BY id DESC LIMIT 1",
+    )
+    return rows[0][0] if rows else None
 
 
-def get_session_summary(session_id: str) -> dict:
-    # aggregate stats for the current session
-    conn = _live_conn()
-    try:
-        total_ticks = conn.execute(
-            "SELECT COALESCE(MAX(tick),0) FROM live_tick_results WHERE session_id=?",
-            (session_id,),
-        ).fetchone()[0]
-
-        total_patients = conn.execute(
-            "SELECT COUNT(DISTINCT patient_id) FROM live_tick_results WHERE session_id=?",
-            (session_id,),
-        ).fetchone()[0]
-
-        status_counts = {
-            row[0]: row[1]
-            for row in conn.execute(
-                "SELECT status, COUNT(*) FROM live_tick_results "
-                "WHERE session_id=? GROUP BY status",
-                (session_id,),
-            ).fetchall()
-        }
-
-        high_risk = conn.execute(
-            """
-            SELECT COUNT(DISTINCT lp.patient_id)
-            FROM live_predictions lp
-            INNER JOIN (
-                SELECT patient_id, MAX(computed_at_tick) AS max_tick
-                FROM live_predictions WHERE session_id = ?
-                GROUP BY patient_id
-            ) m ON lp.patient_id       = m.patient_id
-               AND lp.computed_at_tick = m.max_tick
-            WHERE lp.session_id = ? AND lp.risk_score >= 0.5
-            """,
-            (session_id, session_id),
-        ).fetchone()[0]
-    finally:
-        conn.close()
-
-    return {
-        "session_id": session_id,
-        "total_ticks": total_ticks,
-        "total_patients": total_patients,
-        "status_counts": status_counts,
-        "high_risk_patients": high_risk,
-    }
+def get_session_summary(session_id: str, patient_ids=None) -> dict:
+    totals = _read_live(
+        "SELECT COALESCE(MAX(tick),0), COUNT(DISTINCT patient_id) "
+        "FROM live_tick_results WHERE session_id=?", (session_id,), patient_ids,
+    )[0]
+    statuses = _read_live(
+        "SELECT status, COUNT(*) FROM live_tick_results WHERE session_id=?",
+        (session_id,), patient_ids, suffix=" GROUP BY status",
+    )
+    high_risk = _read_live(
+        "SELECT COUNT(DISTINCT lp.patient_id) FROM live_predictions lp INNER JOIN ("
+        "SELECT patient_id, MAX(computed_at_tick) AS max_tick FROM live_predictions "
+        "WHERE session_id=? GROUP BY patient_id) m "
+        "ON lp.patient_id=m.patient_id AND lp.computed_at_tick=m.max_tick "
+        "WHERE lp.session_id=? AND lp.risk_score>=0.5", (session_id, session_id), patient_ids,
+        column="lp.patient_id",
+    )[0][0]
+    return {"session_id": session_id, "total_ticks": totals[0], "total_patients": totals[1],
+            "status_counts": {row[0]: row[1] for row in statuses}, "high_risk_patients": high_risk}
 
 
 def search_live_patient(session_id: str, patient_id: int) -> Optional[dict]:
@@ -1077,3 +997,61 @@ def search_live_patient(session_id: str, patient_id: int) -> Optional[dict]:
     else:
         result["prediction"] = None
     return result
+
+
+def _patient_filter(patient_ids, column="patient_id"):
+    if patient_ids is None:
+        return "", ()
+    ids = tuple(sorted({int(pid) for pid in patient_ids}))
+    if not ids:
+        return " AND 0", ()
+    return " AND " + column + " IN (" + ",".join("?" for _ in ids) + ")", ids
+
+
+def _read_live(sql, params=(), patient_ids=None, *, column="patient_id", suffix="", suffix_params=()):
+    init_live_db()
+    scope, ids = _patient_filter(patient_ids, column)
+    conn = _live_conn()
+    try:
+        return conn.execute(sql + scope + suffix, (*params, *ids, *suffix_params)).fetchall()
+    finally:
+        conn.close()
+
+
+def store_live_alert(session_id, tick, tick_time, patient_id, alert_type, severity,
+                     confidence=None, details=None):
+    init_live_db()
+    conn = _live_conn()
+    try:
+        conn.execute(
+            "INSERT OR IGNORE INTO live_alerts "
+            "(session_id, tick, timestamp, patient_id, alert_type, severity, confidence, details) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (session_id, tick, tick_time, patient_id, alert_type, severity,
+             confidence, json.dumps(details or {})),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_live_alerts(session_id, limit=200, patient_ids=None):
+    rows = _read_live(
+        "SELECT * FROM live_alerts WHERE session_id=?", (session_id,), patient_ids,
+        suffix=" ORDER BY id DESC LIMIT ?", suffix_params=(limit,),
+    )
+    results = [dict(row) for row in rows]
+    for row in results:
+        row["details"] = json.loads(row["details"] or "{}")
+    return results
+
+
+def get_history_counts(patient_ids=None):
+    _ensure_tables()
+    scope, ids = _patient_filter(patient_ids)
+    with _db_conn(RESULTS_DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT COUNT(DISTINCT patient_id), COUNT(DISTINCT sim_date) "
+            "FROM daily_summaries WHERE 1=1" + scope, ids,
+        ).fetchone()
+    return {"total_patients": row[0], "days_processed": row[1]}

@@ -30,6 +30,17 @@ app = Flask(__name__, static_folder=os.path.join(BASE_DIR, "static"))
 app.json.sort_keys = False
 app.secret_key = os.environ.get('HEARTH_SESSION_KEY', secrets.token_hex(16))
 auth_db.init_db()
+auth_db.create_user('admin', 'adminpassword', 'admin')
+
+_PUBLIC_API_ENDPOINTS = {'api_auth_status', 'api_login', 'api_logout', 'api_signup'}
+
+@app.before_request
+def _require_api_login():
+    if not request.path.startswith('/api/') or request.endpoint in _PUBLIC_API_ENDPOINTS:
+        return None
+    if not session.get('username') or session.get('role') not in {'admin', 'guardian'}:
+        return jsonify({'error': 'Login required'}), 401
+
 
 # when training is running, all API endpoints return 503 except auth
 _training_in_progress = False
@@ -51,7 +62,7 @@ def _check_training_lockdown():
     return jsonify({
         "error": "Model training in progress. Please wait for the downtime to end.",
         "training": True,
-        "message": _training_message,
+        "message": _training_message if session.get("role") == "admin" else "Model training in progress.",
     }), 503
 
 # background thread refreshes predictions every 8s so the dashboard doesn't lag
@@ -120,21 +131,18 @@ def _safe(fn, *args, default=None, **kwargs):
         return default
 
 
-def _live_session():
-    try:
-        live_db.init_live_db()
-        sid = live_db.get_latest_session()
-        if sid:
-            return sid, live_db.get_session_summary(sid)
-    except Exception:
-        pass
-    return None, {}
+def _live_session(patient_ids=None):
+    live_db.init_live_db()
+    sid = live_db.get_latest_session(patient_ids=patient_ids)
+    return (sid, live_db.get_session_summary(sid, patient_ids=patient_ids)) if sid else (None, {})
 
 
 def _get_guardian_patients():
-    if session.get('role') == 'guardian':
-        return auth_db.get_guardian_patients(session.get('username'))
-    return None
+    if session.get('role') == 'admin':
+        return None
+    if session.get('role') == 'guardian' and session.get('username'):
+        return auth_db.get_guardian_patients(session['username'])
+    return []
 
 # None means admin (see all), list means guardian (restricted)
 def _filter_patients(patients_list, allowed_pids):
@@ -143,12 +151,70 @@ def _filter_patients(patients_list, allowed_pids):
     return [p for p in patients_list if p.get('patient_id') in allowed_pids]
 
 
+def _scoped_health(patient_ids, sid=None, summary=None):
+    if patient_ids is None:
+        health = api.get_system_health_sync()
+        health['live_size_mb'] = round(os.path.getsize(live_db.LIVE_DB_PATH) / (1024 * 1024), 2) if os.path.exists(live_db.LIVE_DB_PATH) else 0
+    else:
+        health = live_db.get_history_counts(patient_ids)
+        model_status = 'loaded' if os.path.exists(api.CHECKPOINT_PATH) else 'missing'
+        health.update(model_status=model_status, predictor_status=model_status)
+        if sid:
+            health['total_patients'] = (summary or {}).get('total_patients', 0)
+    health['live_ticks'] = (summary or {}).get('total_ticks', 0)
+    health['live_session'] = sid or '—'
+    return health
+
+
+def _scoped_patients(sid, patient_ids):
+    if sid:
+        patients = live_db.get_latest_patient_states(sid, patient_ids=patient_ids)
+        predictions = {row['patient_id']: row for row in live_db.get_latest_predictions(sid, patient_ids=patient_ids)}
+        for row in patients:
+            prediction = predictions.get(row['patient_id'], {})
+            row.update(risk_score=prediction.get('risk_score', 0.0), risk_label=prediction.get('risk_label', '—'),
+                       worst_status=row.get('status', 'Unknown'), sim_date=row.get('tick_time', ''),
+                       avg_heart_rate=row.get('heart_rate'), avg_systolic=row.get('systolic_bp'),
+                       avg_diastolic=row.get('diastolic_bp'), avg_temp=row.get('body_temp'), avg_spo2=row.get('spo2'))
+    else:
+        patients = _filter_patients(live_db.get_all_patients_latest(), patient_ids)
+        cache = _patient_cache_snap()
+        for row in patients:
+            prediction = cache.get(int(row['patient_id']))
+            if prediction:
+                row.update(risk_score=prediction['risk_score'], risk_label=prediction.get('risk_label', '—'))
+    return patients
+
+
+def _scoped_alerts(sid, patient_ids, limit=200):
+    rows = (live_db.get_live_alerts(sid, limit=limit, patient_ids=patient_ids) if sid else
+            live_db.get_alerts_from_db(limit=limit, patient_ids=patient_ids))
+    alerts = []
+    for row in rows:
+        details = row.get('details') if isinstance(row.get('details'), dict) else {}
+        predictive = row['alert_type'] == 'predictive'
+        confidence = row.get('confidence')
+        if confidence is None:
+            confidence = details.get('risk_score') if predictive else details.get('confidence')
+        alerts.append({
+            'id': row.get('id'), 'patient_id': row['patient_id'],
+            'alert_type': row['alert_type'], 'type': row['alert_type'],
+            'timestamp': row.get('timestamp', ''), 'sim_date': row.get('timestamp', ''),
+            'confidence': confidence, 'risk_label': row.get('severity') if predictive else None,
+            'top_factors': details.get('top_factors') or [],
+            'session_id': row.get('session_id'), 'tick': row.get('tick'),
+        })
+    return alerts
+
+
 @app.route("/api/signup", methods=["POST"])
 def api_signup():
     data = request.json or {}
     username = data.get('username')
     password = data.get('password')
     role = data.get('role', 'guardian')
+    if role != 'guardian':
+        return jsonify({'error': 'Signup creates guardian accounts only'}), 403
     if not username or not password:
         return jsonify({"error": "Missing credentials"}), 400
     success = auth_db.create_user(username, password, role)
@@ -241,175 +307,33 @@ def index():
 
 @app.route("/api/overview")
 def api_overview():
-    # two code paths: live mode (streaming from simulator) or batch mode (historical)
-    sid, summary = _live_session()
-    health = _safe(api.get_system_health_sync, default={})
     allowed_pids = _get_guardian_patients()
-
-    if sid and summary.get("total_ticks", 0) > 0:
-        tick_stats = _safe(live_db.get_latest_tick_stats, sid, default={})
-        patients   = _safe(live_db.get_latest_patient_states, sid, default=[])
-        patients   = _filter_patients(patients, allowed_pids)
-        preds      = _safe(live_db.get_latest_predictions, sid, default=[])
-        live_preds = _filter_patients(list(preds), allowed_pids)
-        live_preds.sort(key=lambda x: x.get("risk_score", 0) or 0, reverse=True)
-        leaderboard = live_preds[:10]
-        # before DB predictions exist (< 7 ticks), fall back to the in-memory cache
+    sid, summary = _live_session(allowed_pids)
+    patients = _scoped_patients(sid, allowed_pids)
+    if sid:
+        day_summary = live_db.get_latest_tick_stats(sid, patient_ids=allowed_pids)
+        leaderboard = live_db.get_latest_predictions(sid, limit=10, patient_ids=allowed_pids)
+    else:
+        latest_date = max((row['sim_date'] for row in patients), default=None)
+        day_summary = live_db.get_day_overview(latest_date, patient_ids=allowed_pids) if latest_date else None
+        leaderboard = _filter_patients(list(_patient_cache_snap().values()), allowed_pids)
         if not leaderboard:
-            cache_snap_live = _patient_cache_snap()
-            lb_cache = sorted(cache_snap_live.values(), key=lambda x: x.get('risk_score', 0) or 0, reverse=True)
-            leaderboard = _filter_patients(lb_cache, allowed_pids)[:10]
-
-        # live critical alerts
-        alerts = [
-            {"patient_id": p["patient_id"], "alert_type": "critical", "type": "critical",
-             "sim_date": p.get("tick_time", ""), "confidence": p.get("confidence")}
-            for p in patients if p.get("status") == "Critical"
-        ]
-        alerts = _filter_patients(alerts, allowed_pids)
-
-        # predictive alerts
-        pred_pids_added = set()
-        for p in live_preds:
-            if (p.get('risk_score') or 0) >= 0.5:
-                fac = p.get('top_factors', [])
-                if isinstance(fac, str):
-                    try: fac = json.loads(fac)
-                    except Exception: fac = []
-                alerts.append({
-                    'patient_id': p['patient_id'],
-                    'alert_type': 'predictive',
-                    'type':       'predictive',
-                    'sim_date':   p.get('computed_at_time', ''),
-                    'confidence': p.get('risk_score'),
-                    'risk_label': p.get('risk_label'),
-                    'top_factors': fac,
-                })
-                pred_pids_added.add(p['patient_id'])
-        # fall back to stored preds
-        if not pred_pids_added:
-            try:
-                stored_preds = live_db.get_all_latest_predictions()
-                session_pids = {p['patient_id'] for p in patients}
-                for p in stored_preds:
-                    if p.get('risk_label') == 'HIGH RISK' and p.get('patient_id') in session_pids:
-                        fac = p.get('top_factors', [])
-                        if isinstance(fac, str):
-                            try: fac = json.loads(fac)
-                            except Exception: fac = []
-                        alerts.append({
-                            'patient_id': p['patient_id'],
-                            'alert_type': 'predictive',
-                            'type':       'predictive',
-                            'sim_date':   p.get('sim_date', '') or p.get('timestamp', ''),
-                            'confidence': p.get('risk_score'),
-                            'risk_label': p.get('risk_label'),
-                            'top_factors': fac,
-                        })
-            except Exception:
-                pass
-
-        return jsonify({
-            "live_mode":   True,
-            "session_id":  sid,
-            "patients":    patients,
-            "tick_stats":  tick_stats,
-            "day_summary": tick_stats,
-            "leaderboard": leaderboard,
-            "recent_alerts": alerts[:12],
-            "system_health": health,
-            "summary":     summary,
-        })
-
-    data          = _safe(api.get_dashboard_data_sync, default={})
-    patients_data = _filter_patients(data.get("patients", []), allowed_pids)
-    all_alerts = []
-    try:
-        for p in live_db.get_all_patients_latest():
-            if p.get('worst_status') == 'Critical':
-                all_alerts.append({
-                    'patient_id': p['patient_id'],
-                    'alert_type': 'critical',
-                    'type':       'critical',
-                    'sim_date':   p.get('sim_date', ''),
-                    'confidence': p.get('avg_confidence') or p.get('confidence'),
-                    'risk_label': None,
-                    'top_factors': [],
-                })
-    except Exception:
-        pass
-    try:
-        for p in live_db.get_all_latest_predictions():
-            if p.get('risk_label') == 'HIGH RISK':
-                fac = p.get('top_factors', [])
-                if isinstance(fac, str):
-                    try: fac = json.loads(fac)
-                    except Exception: fac = []
-                all_alerts.append({
-                    'patient_id': p['patient_id'],
-                    'alert_type': 'predictive',
-                    'type':       'predictive',
-                    'sim_date':   p.get('sim_date', '') or p.get('timestamp', ''),
-                    'confidence': p.get('risk_score'),
-                    'risk_label': p.get('risk_label'),
-                    'top_factors': fac,
-                })
-    except Exception:
-        pass
-    all_alerts = _filter_patients(all_alerts, allowed_pids)
-    cache_snap = _patient_cache_snap()
-    for p in patients_data:
-        pred = cache_snap.get(int(p.get('patient_id', 0)))
-        if pred:
-            p['risk_score'] = pred['risk_score']
-            p['risk_label'] = pred.get('risk_label', p.get('risk_label', '—'))
-    lb_entries = list(cache_snap.values())
-    lb_all = sorted(lb_entries, key=lambda x: x.get('risk_score', 0) or 0, reverse=True)
-    lboard = _filter_patients(lb_all, allowed_pids)[:10]
-    if not lboard:
-        lboard = _safe(lambda: api._run_sync(api.get_risk_leaderboard(limit=100)), default=[])
-        lboard = _filter_patients(lboard, allowed_pids)[:10]
+            leaderboard = _filter_patients(live_db.get_all_latest_predictions(), allowed_pids)
+        leaderboard = sorted(leaderboard, key=lambda row: row.get('risk_score') or 0, reverse=True)[:10]
     return jsonify({
-        "live_mode":     False,
-        "patients":      patients_data,
-        "day_summary":   data.get("day_summary"),
-        "leaderboard":   lboard,
-        "recent_alerts": all_alerts[:12],
-        "system_health": health,
-        "summary":       {},
+        'live_mode': bool(sid), 'session_id': sid, 'patients': patients,
+        'tick_stats': day_summary if sid else {}, 'day_summary': day_summary,
+        'leaderboard': leaderboard, 'recent_alerts': _scoped_alerts(sid, allowed_pids, limit=12),
+        'system_health': _scoped_health(allowed_pids, sid, summary), 'summary': summary,
     })
 
 
 @app.route("/api/patients")
 def api_patients():
-    sid, summary = _live_session()
     allowed_pids = _get_guardian_patients()
-    if sid and summary.get("total_ticks", 0) > 0:
-        patients = _safe(live_db.get_latest_patient_states, sid, default=[])
-        patients = _filter_patients(patients, allowed_pids)
-        preds_map = {p["patient_id"]: p for p in _safe(live_db.get_latest_predictions, sid, default=[])}
-        for pt in patients:
-            pred = preds_map.get(pt["patient_id"])
-            pt["risk_score"] = pred["risk_score"] if pred else 0.0
-            pt["risk_label"] = pred["risk_label"] if pred else "—"
-            pt["worst_status"] = pt.get("status", "Unknown")
-            pt["sim_date"]  = pt.get("tick_time", "")
-            pt["avg_heart_rate"]  = pt.get("heart_rate")
-            pt["avg_systolic"]    = pt.get("systolic_bp")
-            pt["avg_diastolic"]   = pt.get("diastolic_bp")
-            pt["avg_temp"]        = pt.get("body_temp")
-            pt["avg_spo2"]        = pt.get("spo2")
-        return jsonify(sorted(patients, key=lambda p: p.get("risk_score") or 0, reverse=True))
-
-    data = _safe(api.get_dashboard_data_sync, default={})
-    patients_data = _filter_patients(data.get("patients", []), allowed_pids)
-    cache_snap = _patient_cache_snap()
-    for p in patients_data:
-        pred = cache_snap.get(int(p.get('patient_id', 0)))
-        if pred:
-            p['risk_score'] = pred['risk_score']
-            p['risk_label'] = pred.get('risk_label', p.get('risk_label', '—'))
-    return jsonify(sorted(patients_data, key=lambda p: p.get('risk_score') or 0, reverse=True))
+    sid, _ = _live_session(allowed_pids)
+    patients = _scoped_patients(sid, allowed_pids)
+    return jsonify(sorted(patients, key=lambda row: row.get('risk_score') or 0, reverse=True))
 
 @app.route("/api/patients/<int:pid>")
 def api_patient_detail(pid):
@@ -417,10 +341,10 @@ def api_patient_detail(pid):
     if allowed_pids is not None and pid not in allowed_pids:
         return jsonify({}), 403
     
-    sid, summary = _live_session()
+    sid, summary = _live_session(allowed_pids)
     if sid and summary.get("total_ticks", 0) > 0:
         window = _safe(live_db.get_patient_window, sid, pid, 20, default=[])
-        preds  = _safe(live_db.get_latest_predictions, sid, default=[])
+        preds  = _safe(live_db.get_latest_predictions, sid, patient_ids=[pid], default=[])
         pred   = next((p for p in preds if p["patient_id"] == pid), None)
         latest = window[-1] if window else {}
         if pred and isinstance(pred.get("top_factors"), str):
@@ -472,139 +396,24 @@ def api_patient_detail(pid):
 @app.route("/api/alerts")
 def api_alerts():
     allowed_pids = _get_guardian_patients()
-    db_rows = _safe(lambda: live_db.get_alerts_from_db(limit=200), default=[])
-    alerts = []
-    for r in db_rows:
-        det = r.get('details') if isinstance(r.get('details'), dict) else {}
-        alerts.append({
-            'id':          r.get('id'),
-            'patient_id':  r['patient_id'],
-            'alert_type':  r['alert_type'],
-            'type':        r['alert_type'],
-            'timestamp':   r.get('timestamp', ''),
-            'sim_date':    r.get('timestamp', ''),
-            'confidence':  det.get('risk_score') if r['alert_type'] == 'predictive' else r.get('confidence'),
-            'risk_label':  r.get('severity'),
-            'top_factors': det.get('top_factors', []) if isinstance(det, dict) else [],
-        })
-    # try in-memory queues
-    if not alerts:
-        for a in alert_engine.get_alerts_sync() + alert_engine.get_predictive_alerts_sync():
-            alerts.append({
-                'id':          None,
-                'patient_id':  a['patient_id'],
-                'alert_type':  'critical' if 'status' in a else 'predictive',
-                'type':        'critical' if 'status' in a else 'predictive',
-                'timestamp':   a.get('timestamp', ''),
-                'sim_date':    a.get('timestamp', ''),
-                'confidence':  a.get('confidence') or a.get('risk_score'),
-                'risk_label':  a.get('risk_label'),
-                'top_factors': a.get('top_factors', []) or [],
-            })
-        alerts.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
-
-    # try results db
-    if not alerts:
-        try:
-            with sqlite3.connect(live_db.RESULTS_DB_PATH) as conn:
-                conn.row_factory = sqlite3.Row
-                for r in conn.execute(
-                    "SELECT patient_id, sim_date, avg_confidence FROM daily_summaries "
-                    "WHERE worst_status='Critical' ORDER BY sim_date DESC LIMIT 150"
-                ).fetchall():
-                    alerts.append({
-                        'id': None, 'patient_id': r['patient_id'],
-                        'alert_type': 'critical', 'type': 'critical',
-                        'timestamp': r['sim_date'], 'sim_date': r['sim_date'],
-                        'confidence': r['avg_confidence'], 'risk_label': None, 'top_factors': [],
-                    })
-                for r in conn.execute(
-                    "SELECT patient_id, timestamp, sim_date, risk_score, risk_label, top_factors "
-                    "FROM predictions WHERE risk_label='HIGH RISK' ORDER BY timestamp DESC LIMIT 150"
-                ).fetchall():
-                    fac = []
-                    try: fac = json.loads(r['top_factors']) if r['top_factors'] else []
-                    except Exception: pass
-                    alerts.append({
-                        'id': None, 'patient_id': r['patient_id'],
-                        'alert_type': 'predictive', 'type': 'predictive',
-                        'timestamp': r['timestamp'] or r['sim_date'],
-                        'sim_date':  r['timestamp'] or r['sim_date'],
-                        'confidence': r['risk_score'], 'risk_label': r['risk_label'],
-                        'top_factors': fac,
-                    })
-            alerts.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
-        except Exception:
-            pass
-
-    # try live db
-    if not alerts:
-        try:
-            LIVE_DB_PATH = _data_path('hearth_live.db')
-            with sqlite3.connect(LIVE_DB_PATH) as conn:
-                conn.row_factory = sqlite3.Row
-                # latest high risk per patient
-                for r in conn.execute(
-                    "SELECT patient_id, MAX(computed_at_time) AS computed_at_time, "
-                    "risk_score, risk_label, top_factors "
-                    "FROM live_predictions WHERE risk_label='HIGH RISK' "
-                    "GROUP BY patient_id ORDER BY computed_at_time DESC"
-                ).fetchall():
-                    fac = []
-                    try: fac = json.loads(r['top_factors']) if r['top_factors'] else []
-                    except Exception: pass
-                    alerts.append({
-                        'id': None, 'patient_id': r['patient_id'],
-                        'alert_type': 'predictive', 'type': 'predictive',
-                        'timestamp': r['computed_at_time'], 'sim_date': r['computed_at_time'],
-                        'confidence': r['risk_score'], 'risk_label': r['risk_label'],
-                        'top_factors': fac,
-                    })
-                # latest critical per patient
-                for r in conn.execute(
-                    "SELECT patient_id, MAX(tick_time) AS tick_time, confidence "
-                    "FROM live_tick_results WHERE status='Critical' "
-                    "GROUP BY patient_id ORDER BY tick_time DESC LIMIT 100"
-                ).fetchall():
-                    alerts.append({
-                        'id': None, 'patient_id': r['patient_id'],
-                        'alert_type': 'critical', 'type': 'critical',
-                        'timestamp': r['tick_time'], 'sim_date': r['tick_time'],
-                        'confidence': r['confidence'], 'risk_label': None, 'top_factors': [],
-                    })
-            alerts.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
-        except Exception:
-            pass
-
-    alerts.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
-    alerts = _filter_patients(alerts, allowed_pids)[:200]
-    return jsonify(alerts)
+    sid, _ = _live_session(allowed_pids)
+    return jsonify(_scoped_alerts(sid, allowed_pids))
 
 
 
 @app.route("/api/live")
 def api_live():
-    try:
-        live_db.init_live_db()
-        sid = live_db.get_latest_session()
-        allowed_pids = _get_guardian_patients()
-        if not sid:
-            return jsonify({"session_id": None, "summary": {}, "predictions": [], "tick_series": [],
-                            "message": "No live session found. Waiting for data..."})
-        summary    = live_db.get_session_summary(sid)
-        preds      = live_db.get_latest_predictions(sid, limit=500)
-        preds      = _filter_patients(preds, allowed_pids)[:200]
-        tick_series = live_db.get_tick_series(sid, n=40)
-        tick_stats  = live_db.get_latest_tick_stats(sid)
-        return jsonify({
-            "session_id":  sid,
-            "summary":     summary,
-            "predictions": preds,
-            "tick_series": tick_series,
-            "tick_stats":  tick_stats,
-        })
-    except Exception as exc:
-        return jsonify({"error": str(exc), "session_id": None, "summary": {}, "predictions": [], "tick_series": []}), 500
+    allowed_pids = _get_guardian_patients()
+    sid, summary = _live_session(allowed_pids)
+    if not sid:
+        return jsonify({'session_id': None, 'summary': {}, 'predictions': [], 'tick_series': [],
+                        'tick_stats': {}, 'message': 'No live session found. Waiting for data...'})
+    return jsonify({
+        'session_id': sid, 'summary': summary,
+        'predictions': live_db.get_latest_predictions(sid, limit=200, patient_ids=allowed_pids),
+        'tick_series': live_db.get_tick_series(sid, n=40, patient_ids=allowed_pids),
+        'tick_stats': live_db.get_latest_tick_stats(sid, patient_ids=allowed_pids),
+    })
 
 
 @app.route("/api/patient/<int:patient_id>")
@@ -614,7 +423,7 @@ def api_patient_search(patient_id):
         return jsonify({"error": "Unauthorized to view this patient", "found": False}), 403
     try:
         live_db.init_live_db()
-        sid = live_db.get_latest_session()
+        sid, _ = _live_session(allowed_pids)
         if not sid:
             return jsonify({"error": "No live session active", "found": False}), 404
         
@@ -629,17 +438,9 @@ def api_patient_search(patient_id):
 
 @app.route("/api/system")
 def api_system():
-    sid, _ = _live_session()
-    health  = _safe(api.get_system_health_sync, default={})
-    try:
-        lv_info = live_db.get_session_summary(sid) if sid else {}
-        live_size = os.path.getsize(live_db.LIVE_DB_PATH) / (1024*1024) if os.path.exists(live_db.LIVE_DB_PATH) else 0
-    except Exception:
-        lv_info, live_size = {}, 0
-    health["live_ticks"]   = lv_info.get("total_ticks", 0)
-    health["live_session"] = sid or "—"
-    health["live_size_mb"] = round(live_size, 2)
-    return jsonify(health)
+    allowed_pids = _get_guardian_patients()
+    sid, summary = _live_session(allowed_pids)
+    return jsonify(_scoped_health(allowed_pids, sid, summary))
 
 
 
@@ -703,6 +504,8 @@ def api_retrain():
 
 @app.route("/api/training_status")
 def api_training_status():
+    if session.get('role') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
     return jsonify({
         "training": _training_in_progress,
         "message": _training_message,
