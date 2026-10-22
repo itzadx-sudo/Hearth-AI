@@ -273,6 +273,42 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 .training-guide.nav-btn:hover{background:var(--teal-light);border-color:var(--teal-light);color:white}
 .training-guide:focus-visible{outline:2px solid var(--teal);outline-offset:4px}
 @media(max-width:640px){.training-info{padding:22px;gap:20px}.training-guide.nav-btn{margin-left:62px}}
+
+.training-help-modal{width:720px;margin:auto;padding:32px;font-family:var(--font);transform:none;opacity:1;color:var(--ink)}
+.training-help-modal::backdrop{background:rgba(250,247,242,.65);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.training-help-modal .mt{margin:4px 50px 8px 0;font-size:26px}
+.training-help-intro{font-size:.86rem;color:var(--ink-muted);line-height:1.65;margin:0 0 20px;max-width:570px}
+.training-help-option{margin:12px 0;border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.training-help-option summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 18px;background:var(--cream);font-weight:700;font-size:.9rem}
+.training-help-option summary::-webkit-details-marker{display:none}
+.training-help-option summary:after{content:'+';color:var(--teal);font-size:22px;font-weight:500}
+.training-help-option[open] summary:after{content:'−'}
+.training-help-content{padding:16px 18px;font-size:.82rem;line-height:1.65;color:var(--ink-muted)}
+.training-help-content p{margin:0 0 12px}
+.training-help-content p:last-child{margin-bottom:0}
+.training-help-platform{display:inline-flex;align-items:center;padding:5px 10px;background:var(--teal-pale);border-radius:100px;color:var(--teal);font-size:.72rem;font-weight:700;margin-bottom:18px}
+.training-help-steps{list-style:none;counter-reset:help-step;margin:0;padding:0}
+.training-help-steps>li{counter-increment:help-step;position:relative;padding-left:35px;margin-bottom:20px}
+.training-help-steps>li:last-child{margin-bottom:0}
+.training-help-steps>li:before{content:counter(help-step);position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;background:var(--teal-pale);color:var(--teal);font-size:.72rem;font-weight:800;display:flex;align-items:center;justify-content:center}
+.training-help-steps strong{display:block;color:var(--ink);font-size:.84rem;margin-bottom:5px}
+.training-help-command{border:1px solid var(--border);background:var(--cream);border-radius:11px;margin:10px 0;overflow:hidden}
+.training-help-command-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 12px;border-bottom:1px solid var(--border);font-size:.68rem;color:var(--ink-muted)}
+.training-help-command button{background:white;border:1px solid var(--border);border-radius:6px;padding:3px 9px;font-family:var(--font);font-size:.7rem;color:var(--teal);font-weight:700;cursor:pointer}
+.training-help-command pre{margin:0;padding:12px;color:var(--ink);font-size:.75rem;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+.training-help-footer{display:flex;justify-content:flex-end;margin-top:20px}
+@media(max-width:640px){.training-help-modal{padding:23px 18px;border-radius:22px;max-height:88dvh}.training-help-modal .mt{font-size:23px}.training-help-content{padding:14px 12px}.training-help-option summary{padding:15px 12px}.training-help-steps>li{padding-left:31px}}
+
+@keyframes trainingHelpIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes trainingHelpOut{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(10px) scale(.98)}}
+@keyframes trainingHelpBackdropIn{from{opacity:0}to{opacity:1}}
+@keyframes trainingHelpBackdropOut{from{opacity:1}to{opacity:0}}
+.training-help-modal{transition:none}
+.training-help-modal[open]{animation:trainingHelpIn .28s cubic-bezier(.22,1,.36,1) both}
+.training-help-modal[open]::backdrop{animation:trainingHelpBackdropIn .28s ease both}
+.training-help-modal[open].is-closing{animation:trainingHelpOut .18s ease-in both}
+.training-help-modal[open].is-closing::backdrop{animation:trainingHelpBackdropOut .18s ease-in both}
+@media(prefers-reduced-motion:reduce){.training-help-modal[open],.training-help-modal[open]::backdrop{animation:none!important}}
 </style>
 </head>
 <body>
@@ -384,10 +420,10 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
         <p>Training runs from the terminal. Stop Hearth before training, then restart it to use the saved model.</p>
       </div>
     </div>
-    <a class="nav-btn training-guide" href="https://github.com/itzadx-sudo/Hearth-AI/blob/main/docs/training.md#standalone-commands" target="_blank" rel="noopener noreferrer">
-      Training guide
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg>
-    </a>
+    <button type="button" class="nav-btn training-guide" onclick="openTrainingHelp()" aria-haspopup="dialog" aria-controls="training-help">
+      Help
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2-3 4m.1 3h.01"/></svg>
+    </button>
   </div>
 
   <!-- ── ADMIN: ASSIGN TO GUARDIAN ──────────────────────────────────── -->
@@ -498,6 +534,42 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 
 <!-- MODAL -->
 <div class="mov" id="m-ov" onclick="bgClose(event)"><div class="mod"><button class="mcl" onclick="closeModal()">&#x2715;</button><div class="mt" id="m-title">Patient Detail</div><div id="m-body"></div></div></div>
+
+<!-- MODEL TRAINING HELP -->
+<dialog id="training-help" class="mod training-help-modal" aria-labelledby="training-help-title" aria-describedby="training-help-intro" onclick="trainingHelpBackdrop(event)">
+  <button type="button" class="mcl" onclick="closeTrainingHelp()" aria-label="Close help">&#x2715;</button>
+  <div class="mt" id="training-help-title">Model training</div>
+  <p class="training-help-intro" id="training-help-intro">Use the included model, or train a new one from the terminal on the computer running Hearth.</p>
+  <details class="training-help-option">
+    <summary>Use the included model</summary>
+    <div class="training-help-content">
+      <p>Hearth includes a trained model, so you can use the dashboard without training anything.</p>
+      <p>If you have already trained a model, Hearth loads your saved copy when the launcher starts.</p>
+    </div>
+  </details>
+  <details class="training-help-option" open>
+    <summary>Train a new model</summary>
+    <div class="training-help-content">
+      <div class="training-help-platform" id="training-help-platform"></div>
+      <ol class="training-help-steps">
+        <li><strong>Stop Hearth</strong>Press <kbd>Ctrl+C</kbd> in the launcher terminal. Keep your virtual environment activated and run the commands below from the project folder.</li>
+        <li><strong>Generate training data</strong>
+          <div class="training-help-command"><div class="training-help-command-bar"><span>Generate</span><button type="button" onclick="copyTrainingCommand('training-generate-command',this)" aria-label="Copy generation command">Copy</button></div><pre><code id="training-generate-command">python -m data.generator</code></pre></div>
+          Choose <b>1 (Training Data)</b>. Set the patient count, days, and readings per hour to generate at least 1,000 readings.
+        </li>
+        <li><strong>Train from the generated data</strong>
+          <div class="training-help-command"><div class="training-help-command-bar"><span id="training-help-shell">Terminal</span><button type="button" onclick="copyTrainingCommand('training-train-command',this)" aria-label="Copy training command">Copy</button></div><pre><code id="training-train-command"></code></pre></div>
+          The trained model is saved in Hearth’s runtime data folder.
+        </li>
+        <li><strong>Restart Hearth</strong>
+          <div class="training-help-command"><div class="training-help-command-bar"><span>Launch</span><button type="button" onclick="copyTrainingCommand('training-restart-command',this)" aria-label="Copy restart command">Copy</button></div><pre><code id="training-restart-command">python main.py</code></pre></div>
+          Restart after training completes so the AI server loads the saved model.
+        </li>
+      </ol>
+    </div>
+  </details>
+  <div class="training-help-footer"><button type="button" class="nav-btn training-guide" onclick="closeTrainingHelp()">Got it</button></div>
+</dialog>
 
 <!-- IN-APP PROMPT -->
 <div class="mov" id="prompt-ov" onclick="if(event.target.id==='prompt-ov')closePrompt()">
@@ -1718,6 +1790,57 @@ async function editGuardianName(){
   }
 }
 
+
+// model training help
+function openTrainingHelp(){
+  const platform=navigator.userAgentData?.platform||navigator.platform||navigator.userAgent;
+  const windows=/win/i.test(platform);
+  const name=windows?'Windows':/mac/i.test(platform)?'macOS':/linux/i.test(platform)?'Linux':'your terminal';
+  document.getElementById('training-help-platform').textContent='Commands for '+name;
+  document.getElementById('training-help-shell').textContent=windows?'PowerShell':'Terminal';
+  document.getElementById('training-train-command').textContent=windows?
+    '$env:HEARTH_SENSOR_DB = "$PWD/data/hearth_sensor.db"\npython -m model.engine --epochs 30 --batch-size 2048 --max-samples 500000\nRemove-Item Env:HEARTH_SENSOR_DB':
+    'HEARTH_SENSOR_DB="$PWD/data/hearth_sensor.db" python -m model.engine --epochs 30 --batch-size 2048 --max-samples 500000';
+  const dialog=document.getElementById('training-help');
+  if(!dialog.open)dialog.showModal();
+}
+let trainingHelpCloseTimer=null;
+function finishClosingTrainingHelp(){
+  clearTimeout(trainingHelpCloseTimer);trainingHelpCloseTimer=null;
+  const dialog=document.getElementById('training-help');
+  if(dialog.open)dialog.close();
+  dialog.classList.remove('is-closing');
+}
+function closeTrainingHelp(){
+  const dialog=document.getElementById('training-help');
+  if(!dialog.open||dialog.classList.contains('is-closing'))return;
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){finishClosingTrainingHelp();return;}
+  dialog.classList.add('is-closing');
+  trainingHelpCloseTimer=setTimeout(finishClosingTrainingHelp,240);
+}
+const trainingHelpDialog=document.getElementById('training-help');
+trainingHelpDialog.addEventListener('cancel',event=>{event.preventDefault();closeTrainingHelp();});
+trainingHelpDialog.addEventListener('animationend',event=>{
+  if(event.target===trainingHelpDialog&&event.animationName==='trainingHelpOut')finishClosingTrainingHelp();
+});
+trainingHelpDialog.addEventListener('close',()=>{
+  if(trainingHelpDialog.open)return;
+  clearTimeout(trainingHelpCloseTimer);trainingHelpCloseTimer=null;
+  trainingHelpDialog.classList.remove('is-closing');
+});
+function trainingHelpBackdrop(event){
+  const dialog=document.getElementById('training-help');
+  if(event.target!==dialog)return;
+  const r=dialog.getBoundingClientRect();
+  if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeTrainingHelp();
+}
+async function copyTrainingCommand(id,button){
+  try{
+    await navigator.clipboard.writeText(document.getElementById(id).textContent);
+    button.textContent='Copied';
+    setTimeout(()=>{button.textContent='Copy';},1400);
+  }catch{showToast('Select the command and copy it from the help window.');}
+}
 
 // bug report
 function openBugReport(){document.getElementById('bugreport-input').value='';document.getElementById('bugreport-ov').classList.add('open');}

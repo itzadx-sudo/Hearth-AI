@@ -45,6 +45,6 @@ If no checkpoint is available, `python main.py` offers **T** to generate synthet
 
 ## Dashboard retraining
 
-Dashboard training is disabled. Use the standalone commands above.
+Dashboard training is disabled. The System page’s **Help** button shows the bundled-model option and standalone training steps, with commands selected for your platform. Use the standalone commands above to train from a terminal.
 
 `POST /api/retrain` returns HTTP 410 for admins without generating data or starting training. `/api/training_status` reports `enabled: false` and `training: false`. Both endpoints require an admin session. Dashboard API routes remain available after a rejected training request.
