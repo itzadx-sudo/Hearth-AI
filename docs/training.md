@@ -2,53 +2,49 @@
 
 [Back to README](../README.md)
 
-Run commands from the repository root with the virtual environment activated. A checkpoint is bundled, so training is optional when that checkpoint is available.
-
-## Launcher training
-
-`python main.py` offers training only if the runtime checkpoint file is absent:
-
-```text
-[T] Train model now
-[Q] Quit
-
-Number of patients  (default 200):
-Number of days      (default 60):
-Sensor reads/hour   (default 12):
-```
-
-Choose `T` to generate synthetic data and train, or `Q` to quit. Inline generation uses the configured sensor database.
+Run commands from the repository root with the virtual environment activated. A checkpoint is bundled, so training is optional.
 
 ## Standalone commands
 
-```bash
-# Interactive synthetic training/test data generation
-python -m data.generator
+1. Stop Hearth with **Ctrl+C** in the launcher terminal.
+2. Generate training data:
 
-# Train from the configured sensor database
-python -m model.engine --epochs 30 --batch-size 2048 --max-samples 500000
+```bash
+python -m data.generator
 ```
 
-The standalone generator writes `data/hearth_sensor.db` or `data/hearth_test.db`, while the engine normally reads the persistent sensor database. To train on the standalone generator's training output, set `HEARTH_SENSOR_DB` to that file:
+Choose **1 (Training Data)**. The generator writes `data/hearth_sensor.db`. Training requires at least 1,000 readings.
+
+3. Train from that same database:
 
 ```bash
 # macOS/Linux
-HEARTH_SENSOR_DB="$PWD/data/hearth_sensor.db" python -m model.engine
+HEARTH_SENSOR_DB="$PWD/data/hearth_sensor.db" python -m model.engine --epochs 30 --batch-size 2048 --max-samples 500000
 ```
 
 ```powershell
 # Windows PowerShell
 $env:HEARTH_SENSOR_DB = "$PWD/data/hearth_sensor.db"
-python -m model.engine
+python -m model.engine --epochs 30 --batch-size 2048 --max-samples 500000
+Remove-Item Env:HEARTH_SENSOR_DB
 ```
 
-Training requires at least 1,000 readings. See [Configuration and runtime data](configuration.md#runtime-data) for persistent database locations and checkpoint precedence.
+The trainer saves the checkpoint in the persistent runtime directory. It does not replace the bundled checkpoint. See [Configuration and runtime data](configuration.md#runtime-data) for locations.
+
+4. After training completes, restart Hearth:
+
+```bash
+python main.py
+```
+
+The AI server loads the saved runtime checkpoint at startup.
+
+## Launcher training
+
+If no checkpoint is available, `python main.py` offers **T** to generate synthetic data and train, or **Q** to quit. The launcher asks for the patient count, days, and readings per hour. Generation and training both use the configured sensor database and finish before the AI server starts.
 
 ## Dashboard retraining
 
-Admins can generate synthetic training data and start training from the dashboard. `/api/training_status` exposes progress. Most API routes return HTTP 503 during training; authentication, training status/control, landing pages, and static assets remain available.
+Dashboard training is disabled. Use the standalone commands above.
 
-Limitations:
-
-- Retraining generates `hearth_sensor.db` in the repository root, then trains from the configured sensor database. With default paths, these are different files.
-- Retraining does not automatically reload the model already held by the separate AI server process. Restart the launcher after successful training to load the saved checkpoint there.
+`POST /api/retrain` returns HTTP 410 for admins without generating data or starting training. `/api/training_status` reports `enabled: false` and `training: false`. Both endpoints require an admin session. Dashboard API routes remain available after a rejected training request.

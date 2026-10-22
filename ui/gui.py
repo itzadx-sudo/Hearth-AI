@@ -42,29 +42,6 @@ def _require_api_login():
         return jsonify({'error': 'Login required'}), 401
 
 
-# when training is running, all API endpoints return 503 except auth
-_training_in_progress = False
-_training_message = ""
-_training_lock = threading.Lock()
-
-_TRAINING_ALLOWED_ENDPOINTS = {
-    'api_auth_status', 'api_login', 'api_logout', 'api_signup',
-    'api_training_status', 'api_retrain', 'index', 'landing', 'static',
-}
-
-@app.before_request
-def _check_training_lockdown():
-    if not _training_in_progress:
-        return None
-    endpoint = request.endpoint or ''
-    if endpoint in _TRAINING_ALLOWED_ENDPOINTS:
-        return None
-    return jsonify({
-        "error": "Model training in progress. Please wait for the downtime to end.",
-        "training": True,
-        "message": _training_message if session.get("role") == "admin" else "Model training in progress.",
-    }), 503
-
 # background thread refreshes predictions every 8s so the dashboard doesn't lag
 _pred_cache: dict = {}
 _pred_lock = threading.Lock()
@@ -444,73 +421,26 @@ def api_system():
 
 
 
-def _retrain_worker(num_patients, num_days, readings_per_hour):
-    global _training_in_progress, _training_message
-    from data import logger as _dl
-    from data.generator import generate_to_db
-
-    try:
-        _training_message = "Generating training data…"
-        print(f"[RETRAIN] Generating {num_patients} patients × {num_days} days "
-              f"@ {readings_per_hour} rdgs/hr")
-
-        train_path = os.path.join(BASE_DIR, "hearth_sensor.db")
-        orig_path = _dl.SENSOR_DB_PATH
-        try:
-            _dl.SENSOR_DB_PATH = train_path
-            if os.path.exists(train_path):
-                os.remove(train_path)
-            generate_to_db(num_patients, num_days, readings_per_hour, seed=42)
-        finally:
-            _dl.SENSOR_DB_PATH = orig_path
-
-        _training_message = "Training model…"
-        print("[RETRAIN] Starting model training…")
-        engine = _get_engine()
-        engine.train_from_db(max_samples=500_000, epochs=30, batch_size=2048)
-
-        _training_message = "Training complete!"
-        print("[RETRAIN] Training complete.")
-    except Exception as exc:
-        _training_message = f"Training failed: {exc}"
-        print(f"[RETRAIN] ERROR: {exc}")
-    finally:
-        with _training_lock:
-            _training_in_progress = False
+_TRAINING_DISABLED_MESSAGE = (
+    "Dashboard training is disabled. Stop Hearth, follow docs/training.md "
+    "to train from the command line, then restart the launcher."
+)
 
 
 @app.route("/api/retrain", methods=["POST"])
 def api_retrain():
-    global _training_in_progress, _training_message
     if session.get('role') != 'admin':
         return jsonify({"error": "Unauthorized"}), 403
-    with _training_lock:
-        if _training_in_progress:
-            return jsonify({"error": "Training already in progress"}), 409
-        _training_in_progress = True
-    data = request.json or {}
-    num_patients = max(1, min(int(data.get('num_patients', 50)), 5000))
-    num_days = max(1, min(int(data.get('num_days', 30)), 730))
-    readings_per_hour = max(1, min(int(data.get('readings_per_hour', 15)), 20))
-    _training_message = "Initialising…"
-    t = threading.Thread(
-        target=_retrain_worker,
-        args=(num_patients, num_days, readings_per_hour),
-        daemon=True,
-    )
-    t.start()
-    return jsonify({"message": "Training started", "training": True})
+    return jsonify({"error": _TRAINING_DISABLED_MESSAGE,
+                    "enabled": False, "training": False}), 410
 
 
 @app.route("/api/training_status")
 def api_training_status():
     if session.get('role') != 'admin':
         return jsonify({'error': 'Unauthorized'}), 403
-    return jsonify({
-        "training": _training_in_progress,
-        "message": _training_message,
-    })
-
+    return jsonify({"enabled": False, "training": False,
+                    "message": _TRAINING_DISABLED_MESSAGE})
 
 
 def _load_html():

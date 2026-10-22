@@ -75,4 +75,4 @@ See [Configuration and runtime data](configuration.md) for database locations an
 
 ## API access
 
-Patient API routes require login. Guardian lists, details, alerts, summaries, trends, and health counters include only assigned patients. Admin sessions can access all patients. Public signup creates guardian accounts; the demo admin account is created at server startup. Assignment, retraining, guardian listings, and training status require an admin session.
+Patient API routes require login. Guardian lists, details, alerts, summaries, trends, and health counters include only assigned patients. Admin sessions can access all patients. Public signup creates guardian accounts; the demo admin account is created at server startup. Assignment, guardian listings, and training status require an admin session. Dashboard training is disabled; `/api/retrain` returns HTTP 410 for admins and starts no worker.

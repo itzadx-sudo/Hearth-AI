@@ -45,6 +45,6 @@ WINDOW_DAYS              = 7     # historical lookback requested by the predicto
 
 Runtime files include `hearth_tabnet.pth`, `hearth_sensor.db`, `hearth_results.db`, `hearth_live.db`, and `user.db`. Live readings, predictions, and alert events use `hearth_live.db`; historical summaries, predictions, and alerts use `hearth_results.db`; authentication uses `user.db`. An existing runtime checkpoint takes precedence over the bundled checkpoint.
 
-The standalone generator uses files under `data/`, and dashboard retraining generates `hearth_sensor.db` in the repository root. These paths differ from the default persistent sensor database.
+The standalone generator writes training data to `data/hearth_sensor.db`. Set `HEARTH_SENSOR_DB` to that file when running the trainer. Dashboard training is disabled.
 
-See [Training](training.md#dashboard-retraining) for dashboard retraining paths.
+See [Training](training.md#standalone-commands) for the stop, train, and restart procedure.

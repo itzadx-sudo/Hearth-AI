@@ -7,7 +7,7 @@ A home-care patient monitoring demo that streams synthetic vitals, classifies pa
 - **Simulated vitals:** heart rate, blood pressure, temperature, SpO2, and activity streamed over TCP.
 - **Patient assessment:** Healthy / Unhealthy / Critical classification, rolling risk scores, and model attention views.
 - **Live dashboard:** patient charts, debounced Critical alerts, risk alerts, and per-patient details.
-- **Accounts and administration:** guardian accounts with assigned-patient access, patient assignment, and admin retraining.
+- **Accounts and administration:** guardian accounts with assigned-patient access, and patient assignment.
 
 ## Quick start
 
@@ -46,7 +46,7 @@ Dashboard charts and fonts load from external services and need internet access.
 
 ## Dashboard access
 
-- **Admin Mode:** use the dashboard button for the demo account (`admin` / `adminpassword`). The server creates the demo account at startup if needed. Admins can assign patients and start retraining.
+- **Admin Mode:** use the dashboard button for the demo account (`admin` / `adminpassword`). The server creates the demo account at startup if needed. Admins can assign patients.
 - **Guardian:** sign up, then ask an admin to assign patient IDs to your account.
 - Display names can be edited in the dashboard.
 
@@ -75,5 +75,5 @@ Training and live demo data are synthetic.
 
 - [Architecture](docs/architecture.md): files, processes, storage writes, and TCP framing.
 - [Model](docs/model.md): features, model design, risk semantics, and fallback behavior.
-- [Training](docs/training.md): launcher training, standalone commands, and retraining limitations.
+- [Training](docs/training.md): launcher training and standalone retraining commands.
 - [Configuration and runtime data](docs/configuration.md): defaults, environment variables, database locations, and checkpoint precedence.

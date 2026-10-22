@@ -1,0 +1,19 @@
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Test and packaging output
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+tests/
+
+# Local runtime files
+.DS_Store
+*.log
+*.db
+*.db-*
