@@ -10,6 +10,12 @@ The overview shows how many patients are healthy, unhealthy, or critical. A snap
 
 ![Hearth AI overview showing patient status counts and a snapshot of simulated vital signs](./hearth-dashboard-overview.jpg)
 
+### Check risk scores and alerts
+
+The Risk Leaderboard ranks patients by their rolling risk scores. The Live Alerts panel flags sustained critical status and high predicted risk, so you can see which patients to check first.
+
+![Hearth AI risk leaderboard and live alerts for simulated patients](./hearth-live-alerts.jpg)
+
 ### Open a patient’s details
 
 Select a patient to see how their heart rate and oxygen levels have changed over time. The detail view also shows their status history, risk score, and which measurements the model gave the most attention.
