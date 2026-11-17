@@ -50,6 +50,10 @@ Dashboard charts and fonts load from external services and need internet access.
 - **Guardian:** sign up, then ask an admin to assign patient IDs to your account.
 - Display names can be edited in the dashboard.
 
+![Hearth AI patient detail view with simulated vital signs, a risk score, and a status timeline](./hearth-patient-detail.jpg)
+
+*Patient detail view with simulated vital signs.*
+
 ## Architecture
 
 ```text
