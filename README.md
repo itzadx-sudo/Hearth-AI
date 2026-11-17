@@ -2,6 +2,8 @@
 
 A home-care patient monitoring demo that streams synthetic vitals, classifies patient status with a custom TabNet model, and displays live charts, alerts, and risk scores in a Flask dashboard.
 
+![Hearth AI dashboard overview showing simulated patient statuses and vital signs charts](./hearth-dashboard-overview.jpg)
+
 ## Features
 
 - **Simulated vitals:** heart rate, blood pressure, temperature, SpO2, and activity streamed over TCP.
