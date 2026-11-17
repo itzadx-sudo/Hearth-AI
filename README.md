@@ -1,8 +1,20 @@
 # Hearth AI
 
-A home-care patient monitoring demo that streams synthetic vitals, classifies patient status with a custom TabNet model, and displays live charts, alerts, and risk scores in a Flask dashboard.
+Hearth AI is a home-care monitoring demo. It streams simulated vital signs, uses a TabNet model to classify patient status, and shows the results on a live dashboard.
 
-![Hearth AI dashboard overview showing simulated patient statuses and vital signs charts](./hearth-dashboard-overview.jpg)
+## How it works
+
+### Start with the dashboard
+
+The overview shows how many patients are healthy, unhealthy, or critical. A snapshot of vital signs across all patients helps you get your bearings before opening an individual record.
+
+![Hearth AI overview showing patient status counts and a snapshot of simulated vital signs](./hearth-dashboard-overview.jpg)
+
+### Open a patient’s details
+
+Select a patient to see how their heart rate and oxygen levels have changed over time. The detail view also shows their status history, risk score, and which measurements the model gave the most attention.
+
+![Hearth AI patient detail view showing vital sign trends, a risk score, and a status timeline](./hearth-patient-detail.jpg)
 
 ## Features
 
@@ -51,10 +63,6 @@ Dashboard charts and fonts load from external services and need internet access.
 - **Admin Mode:** use the dashboard button for the demo account (`admin` / `adminpassword`). The server creates the demo account at startup if needed. Admins can assign patients.
 - **Guardian:** sign up, then ask an admin to assign patient IDs to your account.
 - Display names can be edited in the dashboard.
-
-![Hearth AI patient detail view with simulated vital signs, a risk score, and a status timeline](./hearth-patient-detail.jpg)
-
-*Patient detail view with simulated vital signs.*
 
 ## Architecture
 
