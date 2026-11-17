@@ -8,19 +8,19 @@ Hearth AI is a home-care monitoring demo. It streams simulated vital signs, uses
 
 The overview shows how many patients are healthy, unhealthy, or critical. A snapshot of vital signs across all patients helps you get your bearings before opening an individual record.
 
-![Hearth AI overview showing patient status counts and a snapshot of simulated vital signs](./hearth-dashboard-overview.jpg)
+![Hearth AI overview showing patient status counts and a snapshot of simulated vital signs](./docs/images/hearth-dashboard-overview.jpg)
 
 ### Check risk scores and alerts
 
 The Risk Leaderboard ranks patients by their rolling risk scores. The Live Alerts panel flags sustained critical status and high predicted risk, so you can see which patients to check first.
 
-![Hearth AI risk leaderboard and live alerts for simulated patients](./hearth-live-alerts.jpg)
+![Hearth AI risk leaderboard and live alerts for simulated patients](./docs/images/hearth-live-alerts.jpg)
 
 ### Open a patient’s details
 
 Select a patient to see how their heart rate and oxygen levels have changed over time. The detail view also shows their status history, risk score, and which measurements the model gave the most attention.
 
-![Hearth AI patient detail view showing vital sign trends, a risk score, and a status timeline](./hearth-patient-detail.jpg)
+![Hearth AI patient detail view showing vital sign trends, a risk score, and a status timeline](./docs/images/hearth-patient-detail.jpg)
 
 ## Features
 
